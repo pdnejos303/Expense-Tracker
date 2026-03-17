@@ -18,6 +18,8 @@ import {
   Alert,
   IconButton,
   alpha,
+  CircularProgress,
+  Collapse,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -25,10 +27,13 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import SavingsIcon from '@mui/icons-material/Savings';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 import { firestore, auth } from '@/lib/firebase';
 import { toDate } from '@/lib/timestamp';
 import { formatCurrency } from '@/lib/format';
 import { getFirebaseErrorMessage } from '@/lib/firebaseErrors';
+import { getBudgetAdvice } from '@/lib/openai';
 import { CHART_COLORS } from '@/shared/constants/chart';
 import { useChartHeight } from '@/shared/hooks/useChartHeight';
 import { useSnackbar } from '@/shared/hooks/useSnackbar';
@@ -37,6 +42,7 @@ import ConfirmDialog from '@/shared/components/ConfirmDialog';
 import PageContainer from '@/shared/components/PageContainer';
 import LoadingScreen from '@/shared/components/LoadingScreen';
 import EmptyState from '@/shared/components/EmptyState';
+import QuickAddCategoryDialog from '@/shared/components/QuickAddCategoryDialog';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 function SummaryCard({ title, amount, icon, color }) {
@@ -74,7 +80,13 @@ function BudgetManagementPage() {
   const [loading, setLoading] = useState(true);
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
   const chartHeight = useChartHeight();
+
+  // AI Budget Advisor
+  const [aiAdvice, setAiAdvice] = useState('');
+  const [aiAdviceLoading, setAiAdviceLoading] = useState(false);
+  const [showAdvice, setShowAdvice] = useState(false);
 
   useEffect(() => { fetchAll(); }, []);
   useEffect(() => { calculateTotals(); checkBudgetAlerts(); }, [budgets, transactions]);
@@ -142,6 +154,46 @@ function BudgetManagementPage() {
     await fetchBudgets(); setDeleteDialog(false); setDeleteId(null); showSnackbar('ลบงบประมาณเรียบร้อยแล้ว!');
   };
 
+  // AI Budget Advisor
+  const handleGetAdvice = async () => {
+    if (transactions.length === 0) {
+      showSnackbar('ยังไม่มีข้อมูลการใช้จ่ายเพียงพอ', 'warning');
+      return;
+    }
+    setAiAdviceLoading(true);
+    setShowAdvice(true);
+    try {
+      const now = new Date();
+      const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+
+      // Calculate avg monthly spending by category for last 3 months
+      const categorySpending = {};
+      transactions.forEach((t) => {
+        if (t.type !== 'expense') return;
+        const tDate = toDate(t.date);
+        if (!tDate || tDate < threeMonthsAgo) return;
+        categorySpending[t.category] = (categorySpending[t.category] || 0) + t.amount;
+      });
+
+      const spendingByCategory = Object.entries(categorySpending).map(([category, total]) => ({
+        category,
+        avgMonthly: total / 3,
+      }));
+
+      const existingBudgets = budgets.map((b) => ({
+        category: b.category,
+        amount: b.amount,
+      }));
+
+      const advice = await getBudgetAdvice(spendingByCategory, existingBudgets);
+      setAiAdvice(advice);
+    } catch (err) {
+      setAiAdvice('ไม่สามารถวิเคราะห์ได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง');
+    } finally {
+      setAiAdviceLoading(false);
+    }
+  };
+
   const expenseByCategory = budgets.map((b) => ({ name: b.category, value: getSpent(b) }));
   const customTooltipStyle = { backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', padding: '8px 12px' };
 
@@ -161,6 +213,61 @@ function BudgetManagementPage() {
           <SummaryCard title="เงินเหลือใช้" amount={remainingBudget} icon={<SavingsIcon sx={{ color: '#fff', fontSize: 22 }} />} color={remainingBudget >= 0 ? '#22c55e' : '#f97316'} />
         </Grid>
       </Grid>
+
+      {/* AI Budget Advisor */}
+      <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 3, border: '1px solid', borderColor: alpha('#8b5cf6', 0.2), bgcolor: alpha('#8b5cf6', 0.02) }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: showAdvice ? 2 : 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <SmartToyIcon sx={{ color: '#8b5cf6', fontSize: 22 }} />
+            <Typography sx={{ fontWeight: 600, fontSize: '0.9375rem' }}>
+              AI แนะนำงบประมาณ
+            </Typography>
+          </Box>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={aiAdviceLoading ? <CircularProgress size={14} /> : <AutoFixHighIcon />}
+            disabled={aiAdviceLoading}
+            onClick={handleGetAdvice}
+            sx={{
+              borderColor: alpha('#8b5cf6', 0.4),
+              color: '#7c3aed',
+              fontSize: '0.8125rem',
+              '&:hover': { borderColor: '#8b5cf6', bgcolor: alpha('#8b5cf6', 0.08) },
+            }}
+          >
+            {aiAdviceLoading ? 'กำลังวิเคราะห์...' : 'วิเคราะห์'}
+          </Button>
+        </Box>
+        <Collapse in={showAdvice}>
+          {aiAdviceLoading ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 2 }}>
+              <CircularProgress size={18} sx={{ color: '#8b5cf6' }} />
+              <Typography sx={{ fontSize: '0.8125rem', color: 'text.secondary' }}>
+                AI กำลังวิเคราะห์พฤติกรรมการใช้จ่ายของคุณ...
+              </Typography>
+            </Box>
+          ) : aiAdvice ? (
+            <Box sx={{
+              bgcolor: alpha('#8b5cf6', 0.04),
+              borderRadius: 2,
+              p: 2,
+              '& p, & li': { fontSize: '0.8125rem', lineHeight: 1.7 },
+              '& ul': { pl: 2, mt: 0.5, mb: 0 },
+            }}>
+              <Typography
+                sx={{ fontSize: '0.8125rem', color: 'text.primary', whiteSpace: 'pre-line' }}
+                dangerouslySetInnerHTML={{
+                  __html: aiAdvice
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/^- /gm, '&bull; ')
+                    .replace(/\n/g, '<br/>'),
+                }}
+              />
+            </Box>
+          ) : null}
+        </Collapse>
+      </Paper>
 
       {/* Alerts */}
       {alertBudgets.length > 0 && (
@@ -240,12 +347,21 @@ function BudgetManagementPage() {
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>{selectedBudget ? 'แก้ไขงบประมาณ' : 'เพิ่มงบประมาณ'}</DialogTitle>
         <DialogContent>
-          <FormControl fullWidth sx={{ mt: 2 }}>
-            <InputLabel>หมวดหมู่</InputLabel>
-            <Select value={newBudget.category} onChange={(e) => setNewBudget({ ...newBudget, category: e.target.value })} label="หมวดหมู่">
-              {categories.filter((c) => c.type === 'expense').map((cat, i) => (<MenuItem key={i} value={cat.name}>{cat.name}</MenuItem>))}
-            </Select>
-          </FormControl>
+          <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+            <FormControl fullWidth>
+              <InputLabel>หมวดหมู่</InputLabel>
+              <Select value={newBudget.category} onChange={(e) => setNewBudget({ ...newBudget, category: e.target.value })} label="หมวดหมู่">
+                {categories.filter((c) => c.type === 'expense').map((cat, i) => (<MenuItem key={i} value={cat.name}>{cat.name}</MenuItem>))}
+              </Select>
+            </FormControl>
+            <IconButton
+              onClick={() => setQuickAddOpen(true)}
+              sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, alignSelf: 'stretch', width: 56 }}
+              aria-label="เพิ่มหมวดหมู่ใหม่"
+            >
+              <AddIcon />
+            </IconButton>
+          </Box>
           <TextField label="จำนวนเงินงบประมาณ" type="number" fullWidth required sx={{ mt: 2 }} value={newBudget.amount} onChange={(e) => setNewBudget({ ...newBudget, amount: e.target.value })} />
           <TextField label="วันที่เริ่มต้น" type="date" fullWidth required sx={{ mt: 2, '& input[type="date"]': { cursor: 'pointer' }, '& input[type="date"]::-webkit-calendar-picker-indicator': { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: 'auto', height: 'auto', color: 'transparent', background: 'transparent', cursor: 'pointer' } }} InputLabelProps={{ shrink: true }} value={newBudget.startDate} onChange={(e) => setNewBudget({ ...newBudget, startDate: e.target.value })} />
           <TextField label="วันที่สิ้นสุด" type="date" fullWidth required sx={{ mt: 2, '& input[type="date"]': { cursor: 'pointer' }, '& input[type="date"]::-webkit-calendar-picker-indicator': { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: 'auto', height: 'auto', color: 'transparent', background: 'transparent', cursor: 'pointer' } }} InputLabelProps={{ shrink: true }} value={newBudget.endDate} onChange={(e) => setNewBudget({ ...newBudget, endDate: e.target.value })} />
@@ -256,6 +372,15 @@ function BudgetManagementPage() {
         </DialogActions>
       </Dialog>
 
+      <QuickAddCategoryDialog
+        open={quickAddOpen}
+        onClose={() => setQuickAddOpen(false)}
+        defaultType="expense"
+        onCreated={async (name) => {
+          await fetchCategories();
+          setNewBudget((b) => ({ ...b, category: name }));
+        }}
+      />
       <ConfirmDialog open={deleteDialog} onClose={() => setDeleteDialog(false)} onConfirm={handleDeleteBudget} message="คุณต้องการลบงบประมาณนี้หรือไม่?" />
       <SnackbarAlert open={snackbar.open} message={snackbar.message} severity={snackbar.severity} onClose={closeSnackbar} />
     </PageContainer>

@@ -23,6 +23,9 @@ import {
   TableContainer,
   Paper,
   TablePagination,
+  alpha,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import { firestore, auth } from '@/lib/firebase';
 import { toSeconds, formatDateTH, formatDateISO } from '@/lib/timestamp';
@@ -36,8 +39,71 @@ import LoadingScreen from '@/shared/components/LoadingScreen';
 import EmptyState from '@/shared/components/EmptyState';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
+import AddIcon from '@mui/icons-material/Add';
+import QuickAddCategoryDialog from '@/shared/components/QuickAddCategoryDialog';
 
 const PAGE_SIZE = 20;
+
+function MobileTransactionCard({ transaction, onEdit, onDelete }) {
+  const isIncome = transaction.type === 'income';
+  return (
+    <Paper
+      sx={{
+        p: 2,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.5,
+      }}
+    >
+      <Box
+        sx={{
+          width: 40,
+          height: 40,
+          borderRadius: '10px',
+          bgcolor: isIncome ? alpha('#22c55e', 0.1) : alpha('#ef4444', 0.1),
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: isIncome ? '#16a34a' : '#dc2626' }}>
+          {isIncome ? '+' : '-'}
+        </Typography>
+      </Box>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: 0.25 }}>
+          <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, color: 'text.primary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', mr: 1 }}>
+            {transaction.category}
+          </Typography>
+          <Typography sx={{ fontSize: '0.875rem', fontWeight: 700, color: isIncome ? '#22c55e' : '#ef4444', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+            {isIncome ? '+' : '-'}{formatCurrency(transaction.amount)}
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
+              {formatDateTH(transaction.date)}
+            </Typography>
+            {transaction.note && (
+              <Typography sx={{ fontSize: '0.6875rem', color: 'text.secondary', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {transaction.note}
+              </Typography>
+            )}
+          </Box>
+          <Box sx={{ display: 'flex', gap: 0 }}>
+            <IconButton size="small" onClick={() => onEdit(transaction)} sx={{ color: 'primary.main' }}>
+              <EditIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+            <IconButton size="small" onClick={() => onDelete(transaction.id)} sx={{ color: '#ef4444' }}>
+              <DeleteIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Box>
+        </Box>
+      </Box>
+    </Paper>
+  );
+}
 
 function TransactionsPage() {
   const [transactions, setTransactions] = useState([]);
@@ -52,6 +118,10 @@ function TransactionsPage() {
   const [categories, setCategories] = useState([]);
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   useEffect(() => { fetchData(); }, [filterType]);
 
@@ -132,9 +202,9 @@ function TransactionsPage() {
 
   return (
     <PageContainer title="รายการบันทึกทั้งหมด">
-      <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-          <FormControl sx={{ minWidth: { xs: 0, sm: 180 }, flex: { xs: '1 1 100%', sm: '0 0 auto' } }} size="small">
+      <Paper sx={{ p: { xs: 1.5, sm: 3 }, mb: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: { xs: 1.5, sm: 2 } }}>
+          <FormControl sx={{ minWidth: 0, flex: { xs: '1 1 calc(50% - 6px)', sm: '0 0 180px' } }} size="small">
             <InputLabel>กรองตามประเภท</InputLabel>
             <Select value={filterType} onChange={(e) => setFilterType(e.target.value)} label="กรองตามประเภท">
               <MenuItem value=""><em>ทั้งหมด</em></MenuItem>
@@ -147,7 +217,7 @@ function TransactionsPage() {
             size="small"
             value={searchKeyword}
             onChange={(e) => { setSearchKeyword(e.target.value); setPage(0); }}
-            sx={{ flex: { xs: '1 1 100%', sm: '0 0 auto' }, minWidth: 200 }}
+            sx={{ flex: { xs: '1 1 calc(50% - 6px)', sm: '0 0 200px' } }}
           />
         </Box>
       </Paper>
@@ -156,7 +226,35 @@ function TransactionsPage() {
         <LoadingScreen pt={4} />
       ) : filteredTransactions.length === 0 ? (
         <Paper sx={{ p: 6 }}><EmptyState message="ไม่พบรายการ" /></Paper>
+      ) : isMobile ? (
+        /* Mobile: Card layout */
+        <>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            {paginatedTransactions.map((transaction) => (
+              <MobileTransactionCard
+                key={transaction.id}
+                transaction={transaction}
+                onEdit={handleEditOpen}
+                onDelete={(id) => { setDeleteId(id); setDeleteDialog(true); }}
+              />
+            ))}
+          </Box>
+          <Paper sx={{ mt: 1.5 }}>
+            <TablePagination
+              component="div"
+              count={filteredTransactions.length}
+              page={page}
+              onPageChange={(_, newPage) => setPage(newPage)}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+              rowsPerPageOptions={[10, 20, 50]}
+              labelRowsPerPage="ต่อหน้า"
+              labelDisplayedRows={({ from, to, count }) => `${from}-${to} จาก ${count}`}
+            />
+          </Paper>
+        </>
       ) : (
+        /* Desktop: Table layout */
         <Paper sx={{ overflow: 'hidden' }}>
           <TableContainer sx={{ overflowX: 'auto' }}>
             <Table sx={{ minWidth: 700 }}>
@@ -226,7 +324,7 @@ function TransactionsPage() {
       <Dialog open={editDialog} onClose={() => setEditDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>แก้ไขรายการ</DialogTitle>
         <DialogContent>
-          <Grid container spacing={2.5} sx={{ mt: 0.5 }}>
+          <Grid container spacing={2} sx={{ mt: 0.5 }}>
             <Grid item xs={12} sm={6}>
               <FormControl fullWidth>
                 <InputLabel>ประเภท</InputLabel>
@@ -237,12 +335,21 @@ function TransactionsPage() {
               </FormControl>
             </Grid>
             <Grid item xs={12} sm={6}>
-              <FormControl fullWidth>
-                <InputLabel>หมวดหมู่</InputLabel>
-                <Select value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })} label="หมวดหมู่">
-                  {categories.map((cat, i) => (<MenuItem key={i} value={cat.name}>{cat.name}</MenuItem>))}
-                </Select>
-              </FormControl>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <FormControl fullWidth>
+                  <InputLabel>หมวดหมู่</InputLabel>
+                  <Select value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })} label="หมวดหมู่">
+                    {categories.map((cat, i) => (<MenuItem key={i} value={cat.name}>{cat.name}</MenuItem>))}
+                  </Select>
+                </FormControl>
+                <IconButton
+                  onClick={() => setQuickAddOpen(true)}
+                  sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, alignSelf: 'stretch', width: { xs: 48, sm: 56 } }}
+                  aria-label="เพิ่มหมวดหมู่ใหม่"
+                >
+                  <AddIcon />
+                </IconButton>
+              </Box>
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField label="จำนวนเงิน" type="number" fullWidth value={editForm.amount} onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })} />
@@ -255,12 +362,21 @@ function TransactionsPage() {
             </Grid>
           </Grid>
         </DialogContent>
-        <DialogActions sx={{ p: 3, pt: 1 }}>
+        <DialogActions sx={{ p: { xs: 2, sm: 3 }, pt: 1 }}>
           <Button onClick={() => setEditDialog(false)}>ยกเลิก</Button>
           <Button onClick={handleEditSave} variant="contained">บันทึก</Button>
         </DialogActions>
       </Dialog>
 
+      <QuickAddCategoryDialog
+        open={quickAddOpen}
+        onClose={() => setQuickAddOpen(false)}
+        defaultType={editForm.type}
+        onCreated={async (name, createdType) => {
+          await fetchCategories(createdType);
+          if (createdType === editForm.type) setEditForm((f) => ({ ...f, category: name }));
+        }}
+      />
       <ConfirmDialog open={deleteDialog} onClose={() => setDeleteDialog(false)} onConfirm={handleDelete} />
       <SnackbarAlert open={snackbar.open} message={snackbar.message} severity={snackbar.severity} onClose={closeSnackbar} />
     </PageContainer>

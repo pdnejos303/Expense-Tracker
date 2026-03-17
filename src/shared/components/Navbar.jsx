@@ -16,27 +16,33 @@ import {
   BottomNavigationAction,
   Paper,
   alpha,
+  Tooltip,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import LogoutIcon from '@mui/icons-material/Logout';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import DarkModeIcon from '@mui/icons-material/DarkMode';
+import LightModeIcon from '@mui/icons-material/LightMode';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { auth } from '@/lib/firebase';
 import { useAuth } from '@/features/auth/hooks/useAuth';
+import { useThemeSettings } from '@/app/ThemeContext';
 import menuItems from '@/shared/config/menuItems';
 import { SIDEBAR_WIDTH } from '@/app/theme';
-
-const SIDEBAR_BG = '#0f172a';
-const SIDEBAR_TEXT = '#94a3b8';
-const SIDEBAR_ACTIVE_TEXT = '#ffffff';
 
 function Navbar() {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const { currentUser } = useAuth();
   const theme = useTheme();
+  const { mode, toggleMode } = useThemeSettings();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const location = useLocation();
+
+  const sb = theme.palette.sidebar || {};
+  const SIDEBAR_BG = sb.bg || '#0f172a';
+  const SIDEBAR_TEXT = sb.text || '#94a3b8';
+  const SIDEBAR_ACTIVE_TEXT = sb.activeText || '#ffffff';
 
   const handleLogout = async () => {
     await auth.signOut();
@@ -94,7 +100,7 @@ function Navbar() {
           <Typography
             variant="subtitle1"
             sx={{
-              color: '#fff',
+              color: SIDEBAR_ACTIVE_TEXT,
               fontWeight: 700,
               fontSize: '1rem',
               lineHeight: 1.2,
@@ -109,7 +115,7 @@ function Navbar() {
         </Box>
       </Box>
 
-      <Divider sx={{ borderColor: alpha('#fff', 0.08), mx: 2 }} />
+      <Divider sx={{ borderColor: sb.divider || alpha('#fff', 0.08), mx: 2 }} />
 
       {/* Menu items */}
       <List sx={{ flex: 1, px: 1.5, py: 2 }}>
@@ -125,11 +131,11 @@ function Navbar() {
                 px: 2,
                 py: 1,
                 color: isActive ? SIDEBAR_ACTIVE_TEXT : SIDEBAR_TEXT,
-                bgcolor: isActive ? alpha(theme.palette.primary.main, 0.15) : 'transparent',
+                bgcolor: isActive ? (sb.activeBg || alpha(theme.palette.primary.main, 0.15)) : 'transparent',
                 '&:hover': {
                   bgcolor: isActive
                     ? alpha(theme.palette.primary.main, 0.2)
-                    : alpha('#fff', 0.05),
+                    : (sb.hoverBg || alpha('#fff', 0.05)),
                 },
                 transition: 'all 0.15s ease',
               }}
@@ -167,7 +173,37 @@ function Navbar() {
         })}
       </List>
 
-      <Divider sx={{ borderColor: alpha('#fff', 0.08), mx: 2 }} />
+      <Divider sx={{ borderColor: sb.divider || alpha('#fff', 0.08), mx: 2 }} />
+
+      {/* Dark mode toggle */}
+      <Box sx={{ px: 2, py: 1.5 }}>
+        <Box
+          onClick={toggleMode}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
+            px: 2,
+            py: 1,
+            borderRadius: '10px',
+            cursor: 'pointer',
+            color: SIDEBAR_TEXT,
+            '&:hover': { bgcolor: sb.hoverBg || alpha('#fff', 0.05) },
+            transition: 'all 0.15s ease',
+          }}
+        >
+          {mode === 'dark' ? (
+            <LightModeIcon sx={{ fontSize: 20 }} />
+          ) : (
+            <DarkModeIcon sx={{ fontSize: 20 }} />
+          )}
+          <Typography sx={{ fontSize: '0.875rem' }}>
+            {mode === 'dark' ? 'โหมดสว่าง' : 'โหมดมืด'}
+          </Typography>
+        </Box>
+      </Box>
+
+      <Divider sx={{ borderColor: sb.divider || alpha('#fff', 0.08), mx: 2 }} />
 
       {/* User section */}
       <Box sx={{ p: 2 }}>
@@ -178,9 +214,9 @@ function Navbar() {
             gap: 1.5,
             p: 1.5,
             borderRadius: '12px',
-            bgcolor: alpha('#fff', 0.05),
+            bgcolor: sb.userBg || alpha('#fff', 0.05),
             cursor: 'pointer',
-            '&:hover': { bgcolor: alpha('#fff', 0.08) },
+            '&:hover': { bgcolor: sb.hoverBg || alpha('#fff', 0.08) },
           }}
           onClick={() => handleNavigate('/profile')}
         >
@@ -190,7 +226,7 @@ function Navbar() {
             sx={{
               width: 36,
               height: 36,
-              border: `2px solid ${alpha('#fff', 0.2)}`,
+              border: `2px solid ${alpha(SIDEBAR_ACTIVE_TEXT, 0.2)}`,
               fontSize: '0.875rem',
             }}
           >
@@ -199,7 +235,7 @@ function Navbar() {
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography
               sx={{
-                color: '#fff',
+                color: SIDEBAR_ACTIVE_TEXT,
                 fontSize: '0.8125rem',
                 fontWeight: 600,
                 lineHeight: 1.3,
@@ -234,6 +270,7 @@ function Navbar() {
   );
 
   if (isMobile) {
+    const isDark = mode === 'dark';
     return (
       <>
         {/* Mobile top bar */}
@@ -244,7 +281,7 @@ function Navbar() {
             left: 0,
             right: 0,
             height: 56,
-            bgcolor: '#ffffff',
+            bgcolor: 'background.paper',
             borderBottom: '1px solid',
             borderColor: 'divider',
             display: 'flex',
@@ -260,7 +297,7 @@ function Navbar() {
           >
             <MenuIcon />
           </IconButton>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
             <Box
               sx={{
                 width: 32,
@@ -278,6 +315,11 @@ function Navbar() {
               Expense Tracker
             </Typography>
           </Box>
+          <Tooltip title={isDark ? 'โหมดสว่าง' : 'โหมดมืด'}>
+            <IconButton onClick={toggleMode} size="small" sx={{ color: 'text.secondary' }}>
+              {isDark ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
+            </IconButton>
+          </Tooltip>
         </Box>
 
         {/* Spacer for fixed top bar */}
@@ -319,12 +361,13 @@ function Navbar() {
             showLabels
             sx={{
               height: 64,
+              bgcolor: 'background.paper',
               '& .MuiBottomNavigationAction-root': {
                 minWidth: 'auto',
                 py: 1,
-                color: '#94a3b8',
+                color: 'text.secondary',
                 '&.Mui-selected': {
-                  color: theme.palette.primary.main,
+                  color: 'primary.main',
                 },
               },
               '& .MuiBottomNavigationAction-label': {

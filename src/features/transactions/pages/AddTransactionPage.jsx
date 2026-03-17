@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   TextField,
   Button,
@@ -10,20 +10,27 @@ import {
   Grid,
   Paper,
   Box,
+  IconButton,
   ToggleButton,
   ToggleButtonGroup,
   alpha,
+  Chip,
+  CircularProgress,
 } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import SaveIcon from '@mui/icons-material/Save';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import { firestore, storage, auth } from '@/lib/firebase';
 import { sanitizeText, validateImageFile, sanitizeFileName } from '@/lib/validation';
 import { getFirebaseErrorMessage } from '@/lib/firebaseErrors';
+import { suggestCategory } from '@/lib/openai';
 import { useSnackbar } from '@/shared/hooks/useSnackbar';
 import SnackbarAlert from '@/shared/components/SnackbarAlert';
 import PageContainer from '@/shared/components/PageContainer';
+import QuickAddCategoryDialog from '@/shared/components/QuickAddCategoryDialog';
 
 function AddTransactionPage() {
   const [type, setType] = useState('expense');
@@ -35,21 +42,50 @@ function AddTransactionPage() {
   const [categories, setCategories] = useState([]);
   const { snackbar, showSnackbar, closeSnackbar } = useSnackbar();
   const [submitting, setSubmitting] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
 
+  // AI categorization
+  const [aiSuggestion, setAiSuggestion] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const fetchCategories = async (selectName) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const snapshot = await firestore
+      .collection('categories')
+      .where('userId', '==', user.uid)
+      .where('type', '==', type)
+      .get();
+    setCategories(snapshot.docs.map((doc) => doc.data()));
+    if (selectName) setCategory(selectName);
+    else setCategory('');
+  };
+
+  useEffect(() => { fetchCategories(); }, [type]);
+
+  // Debounced AI suggestion when note changes
   useEffect(() => {
-    const fetchCategories = async () => {
-      const user = auth.currentUser;
-      if (!user) return;
-      const snapshot = await firestore
-        .collection('categories')
-        .where('userId', '==', user.uid)
-        .where('type', '==', type)
-        .get();
-      setCategories(snapshot.docs.map((doc) => doc.data()));
-      setCategory('');
-    };
-    fetchCategories();
-  }, [type]);
+    if (!note.trim() || note.length < 3 || categories.length === 0) {
+      setAiSuggestion(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setAiLoading(true);
+      try {
+        const suggestion = await suggestCategory(
+          note,
+          categories.map((c) => c.name),
+          type,
+        );
+        setAiSuggestion(suggestion);
+      } catch {
+        setAiSuggestion(null);
+      } finally {
+        setAiLoading(false);
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [note, categories, type]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -86,7 +122,7 @@ function AddTransactionPage() {
 
       setType('expense'); setCategory(''); setAmount('');
       setDate(new Date().toISOString().split('T')[0]);
-      setNote(''); setReceipt(null);
+      setNote(''); setReceipt(null); setAiSuggestion(null);
       showSnackbar('เพิ่มรายการเรียบร้อยแล้ว!');
     } catch (err) {
       showSnackbar(getFirebaseErrorMessage(err), 'error');
@@ -100,39 +136,108 @@ function AddTransactionPage() {
       <Paper sx={{ p: { xs: 3, sm: 4 } }}>
         <form onSubmit={handleSubmit}>
           <Grid container spacing={2.5}>
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth>
-                <InputLabel>ประเภท</InputLabel>
-                <Select value={type} onChange={(e) => setType(e.target.value)} label="ประเภท">
-                  <MenuItem value="income">รายรับ</MenuItem>
-                  <MenuItem value="expense">รายจ่าย</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
             <Grid item xs={12}>
-              <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary', fontWeight: 500 }}>
-                หมวดหมู่
-              </Typography>
-              {categories.length === 0 ? (
-                <Typography variant="body2" sx={{ color: 'text.disabled' }}>
-                  ไม่มีหมวดหมู่ กรุณาเพิ่มในหน้าหมวดหมู่
-                </Typography>
-              ) : (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                  {categories.map((cat, index) => (
-                    <Chip
-                      key={index}
-                      label={cat.name}
-                      onClick={() => setCategory(cat.name)}
-                      variant={category === cat.name ? 'filled' : 'outlined'}
-                      color={category === cat.name ? 'primary' : 'default'}
-                      sx={{
-                        fontWeight: category === cat.name ? 600 : 400,
-                        cursor: 'pointer',
-                        px: 0.5,
-                      }}
-                    />
-                  ))}
+              <ToggleButtonGroup
+                value={type}
+                exclusive
+                onChange={(_, val) => { if (val) setType(val); }}
+                fullWidth
+                sx={{
+                  '& .MuiToggleButton-root': {
+                    py: 1.5,
+                    fontWeight: 600,
+                    fontSize: '0.9375rem',
+                    textTransform: 'none',
+                    gap: 1,
+                    border: '1.5px solid',
+                    borderColor: 'divider',
+                    '&.Mui-selected': {
+                      borderColor: 'transparent',
+                    },
+                  },
+                }}
+              >
+                <ToggleButton
+                  value="expense"
+                  sx={{
+                    '&.Mui-selected': {
+                      bgcolor: 'rgba(239,68,68,0.1)',
+                      color: '#dc2626',
+                      '&:hover': { bgcolor: 'rgba(239,68,68,0.15)' },
+                    },
+                  }}
+                >
+                  <TrendingDownIcon fontSize="small" />
+                  รายจ่าย
+                </ToggleButton>
+                <ToggleButton
+                  value="income"
+                  sx={{
+                    '&.Mui-selected': {
+                      bgcolor: 'rgba(34,197,94,0.1)',
+                      color: '#16a34a',
+                      '&:hover': { bgcolor: 'rgba(34,197,94,0.15)' },
+                    },
+                  }}
+                >
+                  <TrendingUpIcon fontSize="small" />
+                  รายรับ
+                </ToggleButton>
+              </ToggleButtonGroup>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <FormControl fullWidth>
+                  <InputLabel>หมวดหมู่</InputLabel>
+                  <Select value={category} onChange={(e) => setCategory(e.target.value)} label="หมวดหมู่">
+                    {categories.length === 0 && (
+                      <MenuItem disabled>ไม่มีหมวดหมู่</MenuItem>
+                    )}
+                    {categories.map((cat, index) => (
+                      <MenuItem key={index} value={cat.name}>{cat.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <IconButton
+                  onClick={() => setQuickAddOpen(true)}
+                  sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, alignSelf: 'stretch', width: 56 }}
+                  aria-label="เพิ่มหมวดหมู่ใหม่"
+                >
+                  <AddIcon />
+                </IconButton>
+              </Box>
+              {/* AI Category Suggestion */}
+              {(aiSuggestion || aiLoading) && (
+                <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                  {aiLoading ? (
+                    <>
+                      <CircularProgress size={14} />
+                      <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
+                        AI กำลังวิเคราะห์...
+                      </Typography>
+                    </>
+                  ) : aiSuggestion ? (
+                    <>
+                      <AutoFixHighIcon sx={{ fontSize: 16, color: '#8b5cf6' }} />
+                      <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
+                        AI แนะนำ:
+                      </Typography>
+                      <Chip
+                        label={aiSuggestion}
+                        size="small"
+                        onClick={() => setCategory(aiSuggestion)}
+                        sx={{
+                          fontSize: '0.75rem',
+                          height: 24,
+                          bgcolor: alpha('#8b5cf6', 0.1),
+                          color: '#7c3aed',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          '&:hover': { bgcolor: alpha('#8b5cf6', 0.2) },
+                        }}
+                      />
+                    </>
+                  ) : null}
                 </Box>
               )}
             </Grid>
@@ -174,6 +279,7 @@ function AddTransactionPage() {
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 inputProps={{ maxLength: 500 }}
+                helperText={note.length >= 3 ? 'AI จะแนะนำหมวดหมู่อัตโนมัติจากหมายเหตุ' : ''}
               />
             </Grid>
             <Grid item xs={12}>
@@ -214,6 +320,15 @@ function AddTransactionPage() {
           </Grid>
         </form>
       </Paper>
+      <QuickAddCategoryDialog
+        open={quickAddOpen}
+        onClose={() => setQuickAddOpen(false)}
+        defaultType={type}
+        onCreated={(name, createdType) => {
+          if (createdType === type) fetchCategories(name);
+          else fetchCategories();
+        }}
+      />
       <SnackbarAlert open={snackbar.open} message={snackbar.message} severity={snackbar.severity} onClose={closeSnackbar} />
     </PageContainer>
   );

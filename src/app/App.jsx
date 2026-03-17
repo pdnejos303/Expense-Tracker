@@ -1,7 +1,7 @@
-import React, { useState, lazy, Suspense } from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, CssBaseline } from '@mui/material';
-import { createAppTheme } from '@/app/theme';
+import { ThemeSettingsProvider, useThemeSettings } from '@/app/ThemeContext';
 import { AuthProvider } from '@/features/auth/contexts/AuthContext';
 import PrivateRoute from '@/features/auth/components/PrivateRoute';
 import Layout from '@/shared/components/Layout';
@@ -22,13 +22,10 @@ const CategoriesPage = lazy(() => import('@/features/categories/pages/Categories
 const SettingsPage = lazy(() => import('@/features/settings/pages/SettingsPage'));
 const ProfilePage = lazy(() => import('@/features/profile/pages/ProfilePage'));
 const HistoryPage = lazy(() => import('@/features/history/pages/HistoryPage'));
+const PlannerPage = lazy(() => import('@/features/planner/pages/PlannerPage'));
 
-function App() {
-  const [themeColor, setThemeColor] = useState(
-    localStorage.getItem('themeColor') || '#4caf50'
-  );
-
-  const theme = createAppTheme(themeColor);
+function AppContent() {
+  const { theme } = useThemeSettings();
 
   return (
     <ThemeProvider theme={theme}>
@@ -39,18 +36,19 @@ function App() {
             <Layout>
               <Suspense fallback={<LoadingScreen />}>
                 <Routes>
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/register" element={<RegisterPage />} />
-                <Route path="/" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
-                <Route path="/add-transaction" element={<PrivateRoute><AddTransactionPage /></PrivateRoute>} />
-                <Route path="/transactions" element={<PrivateRoute><TransactionsPage /></PrivateRoute>} />
-                <Route path="/reports" element={<PrivateRoute><ReportsPage /></PrivateRoute>} />
-                <Route path="/budget-management" element={<PrivateRoute><BudgetManagementPage /></PrivateRoute>} />
-                <Route path="/categories" element={<PrivateRoute><CategoriesPage /></PrivateRoute>} />
-                <Route path="/settings" element={<PrivateRoute><SettingsPage setThemeColor={setThemeColor} /></PrivateRoute>} />
-                <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
-                <Route path="/history" element={<PrivateRoute><HistoryPage /></PrivateRoute>} />
-                <Route path="*" element={<Navigate to="/" />} />
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/register" element={<RegisterPage />} />
+                  <Route path="/" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
+                  <Route path="/add-transaction" element={<PrivateRoute><AddTransactionPage /></PrivateRoute>} />
+                  <Route path="/transactions" element={<PrivateRoute><TransactionsPage /></PrivateRoute>} />
+                  <Route path="/reports" element={<PrivateRoute><ReportsPage /></PrivateRoute>} />
+                  <Route path="/budget-management" element={<PrivateRoute><BudgetManagementPage /></PrivateRoute>} />
+                  <Route path="/categories" element={<PrivateRoute><CategoriesPage /></PrivateRoute>} />
+                  <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
+                  <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
+                  <Route path="/history" element={<PrivateRoute><HistoryPage /></PrivateRoute>} />
+                  <Route path="/planner" element={<PrivateRoute><PlannerPage /></PrivateRoute>} />
+                  <Route path="*" element={<Navigate to="/" />} />
                 </Routes>
               </Suspense>
             </Layout>
@@ -58,6 +56,14 @@ function App() {
         </AuthProvider>
       </ErrorBoundary>
     </ThemeProvider>
+  );
+}
+
+function App() {
+  return (
+    <ThemeSettingsProvider>
+      <AppContent />
+    </ThemeSettingsProvider>
   );
 }
 

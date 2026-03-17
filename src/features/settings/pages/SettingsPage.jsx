@@ -13,37 +13,161 @@ import {
   Grid,
   Divider,
   alpha,
+  Switch,
+  useTheme,
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
+import DarkModeIcon from '@mui/icons-material/DarkMode';
+import LightModeIcon from '@mui/icons-material/LightMode';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { auth, firestore } from '@/lib/firebase';
 import { getFirebaseErrorMessage } from '@/lib/firebaseErrors';
 import { useSnackbar } from '@/shared/hooks/useSnackbar';
 import SnackbarAlert from '@/shared/components/SnackbarAlert';
 import PageContainer from '@/shared/components/PageContainer';
 import LoadingScreen from '@/shared/components/LoadingScreen';
+import { useThemeSettings } from '@/app/ThemeContext';
+import { THEME_PRESETS } from '@/app/theme';
 
 const currencies = ['THB', 'USD', 'EUR', 'JPY'];
-const themeColors = [
-  { name: 'สีแดง', color: '#f44336' },
-  { name: 'สีชมพู', color: '#e91e63' },
-  { name: 'สีม่วง', color: '#9c27b0' },
-  { name: 'สีม่วงคราม', color: '#673ab7' },
-  { name: 'สีน้ำเงิน', color: '#3f51b5' },
-  { name: 'สีฟ้า', color: '#2196f3' },
-  { name: 'สีเขียว', color: '#4caf50' },
-  { name: 'สีเหลือง', color: '#ffeb3b' },
-  { name: 'สีส้ม', color: '#ff9800' },
-  { name: 'สีน้ำตาล', color: '#795548' },
-];
 
-function SettingsPage({ setThemeColor }) {
+function ThemePresetCard({ preset, isSelected, onClick, mode }) {
+  const isDark = mode === 'dark';
+
+  return (
+    <Box
+      role="radio"
+      aria-checked={isSelected}
+      aria-label={preset.nameLocal}
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); }
+      }}
+      sx={{
+        position: 'relative',
+        borderRadius: '16px',
+        overflow: 'hidden',
+        cursor: 'pointer',
+        border: '2px solid',
+        borderColor: isSelected ? preset.primary : 'transparent',
+        boxShadow: isSelected ? `0 0 0 3px ${alpha(preset.primary, 0.25)}` : 'none',
+        transition: 'all 0.2s ease',
+        '&:hover': {
+          transform: 'translateY(-2px)',
+          boxShadow: isSelected
+            ? `0 8px 25px -5px ${alpha(preset.primary, 0.4)}`
+            : '0 4px 15px -3px rgb(0 0 0 / 0.1)',
+        },
+        '&:focus-visible': {
+          outline: '2px solid',
+          outlineColor: preset.primary,
+          outlineOffset: 2,
+        },
+      }}
+    >
+      {/* Preview header with gradient */}
+      <Box
+        sx={{
+          height: 64,
+          background: `linear-gradient(135deg, ${preset.preview[0]} 0%, ${preset.preview[1]} 50%, ${preset.preview[2]} 100%)`,
+          position: 'relative',
+        }}
+      >
+        {isSelected && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              width: 24,
+              height: 24,
+              borderRadius: '50%',
+              bgcolor: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <CheckCircleIcon sx={{ fontSize: 24, color: preset.primary }} />
+          </Box>
+        )}
+      </Box>
+
+      {/* Preview body - fake UI */}
+      <Box
+        sx={{
+          p: 1.5,
+          bgcolor: isDark ? '#141829' : '#f8fafc',
+        }}
+      >
+        {/* Fake sidebar + content */}
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          {/* Mini sidebar */}
+          <Box sx={{
+            width: 28,
+            borderRadius: '6px',
+            bgcolor: isDark ? '#080b14' : '#0f172a',
+            p: 0.5,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 0.3,
+          }}>
+            {[0, 1, 2].map((i) => (
+              <Box
+                key={i}
+                sx={{
+                  height: 4,
+                  borderRadius: 1,
+                  bgcolor: i === 0 ? preset.primary : alpha('#fff', 0.15),
+                }}
+              />
+            ))}
+          </Box>
+          {/* Mini content */}
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            <Box sx={{ display: 'flex', gap: 0.5 }}>
+              <Box sx={{ flex: 1, height: 14, borderRadius: '4px', bgcolor: alpha(preset.primary, 0.15) }} />
+              <Box sx={{ flex: 1, height: 14, borderRadius: '4px', bgcolor: isDark ? alpha('#fff', 0.06) : alpha('#000', 0.06) }} />
+            </Box>
+            <Box sx={{ height: 20, borderRadius: '4px', bgcolor: isDark ? alpha('#fff', 0.04) : alpha('#000', 0.04) }} />
+          </Box>
+        </Box>
+      </Box>
+
+      {/* Label */}
+      <Box
+        sx={{
+          px: 1.5,
+          py: 1,
+          bgcolor: isDark ? '#0c0f1a' : '#ffffff',
+          borderTop: '1px solid',
+          borderColor: isDark ? alpha('#fff', 0.06) : alpha('#000', 0.06),
+          textAlign: 'center',
+        }}
+      >
+        <Typography sx={{
+          fontSize: '0.8125rem',
+          fontWeight: isSelected ? 700 : 500,
+          color: isSelected ? preset.primary : (isDark ? '#94a3b8' : '#475569'),
+        }}>
+          {preset.nameLocal}
+        </Typography>
+      </Box>
+    </Box>
+  );
+}
+
+function SettingsPage() {
   const [currency, setCurrency] = useState('THB');
   const [budgetAlerts, setBudgetAlerts] = useState(false);
   const [paymentDueAlerts, setPaymentDueAlerts] = useState(false);
-  const [themeColorState, setThemeColorState] = useState('#4caf50');
   const { snackbar, showSnackbar, closeSnackbar } = useSnackbar();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const { themeId, setThemeId, mode, toggleMode } = useThemeSettings();
+  const theme = useTheme();
+  const isDark = mode === 'dark';
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -54,7 +178,10 @@ function SettingsPage({ setThemeColor }) {
         setCurrency(data.currency || 'THB');
         setBudgetAlerts(data.budgetAlerts || false);
         setPaymentDueAlerts(data.paymentDueAlerts || false);
-        setThemeColorState(data.themeColor || '#4caf50');
+        if (data.themeId) setThemeId(data.themeId);
+        if (data.themeMode) {
+          // Sync from Firestore if exists
+        }
       }
       setLoading(false);
     };
@@ -65,9 +192,13 @@ function SettingsPage({ setThemeColor }) {
     const user = auth.currentUser; if (!user) return;
     setSaving(true);
     try {
-      await firestore.collection('users').doc(user.uid).update({ currency, budgetAlerts, paymentDueAlerts, themeColor: themeColorState });
-      setThemeColor(themeColorState);
-      localStorage.setItem('themeColor', themeColorState);
+      await firestore.collection('users').doc(user.uid).update({
+        currency,
+        budgetAlerts,
+        paymentDueAlerts,
+        themeId,
+        themeMode: mode,
+      });
       showSnackbar('บันทึกการตั้งค่าเรียบร้อยแล้ว!');
     } catch (err) { showSnackbar(getFirebaseErrorMessage(err), 'error'); }
     finally { setSaving(false); }
@@ -104,31 +235,46 @@ function SettingsPage({ setThemeColor }) {
 
         <Divider sx={{ my: 3 }} />
 
-        {/* Theme Color */}
-        <Typography variant="subtitle1" sx={{ mb: 2, fontSize: '0.9375rem' }}>สีธีม</Typography>
-        <Grid container spacing={1.5} role="radiogroup" aria-label="เลือกสีธีม">
-          {themeColors.map((tc) => (
-            <Grid item key={tc.color}>
-              <Box
-                role="radio"
-                aria-checked={themeColorState === tc.color}
-                aria-label={tc.name}
-                tabIndex={0}
-                onClick={() => setThemeColorState(tc.color)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setThemeColorState(tc.color); } }}
-                sx={{
-                  width: 44,
-                  height: 44,
-                  backgroundColor: tc.color,
-                  borderRadius: '12px',
-                  cursor: 'pointer',
-                  border: themeColorState === tc.color ? '3px solid #1e293b' : '2px solid transparent',
-                  boxShadow: themeColorState === tc.color ? `0 0 0 3px ${alpha(tc.color, 0.3)}` : 'none',
-                  transition: 'all 0.15s',
-                  '&:hover': { transform: 'scale(1.1)' },
-                  '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 2 },
-                }}
-                title={tc.name}
+        {/* Dark Mode Toggle */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            {isDark ? (
+              <DarkModeIcon sx={{ color: 'primary.main', fontSize: 22 }} />
+            ) : (
+              <LightModeIcon sx={{ color: '#f59e0b', fontSize: 22 }} />
+            )}
+            <Box>
+              <Typography variant="subtitle1" sx={{ fontSize: '0.9375rem', lineHeight: 1.3 }}>
+                โหมดมืด
+              </Typography>
+              <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
+                {isDark ? 'เปิดอยู่ — ถนอมสายตา' : 'ปิดอยู่ — โหมดสว่าง'}
+              </Typography>
+            </Box>
+          </Box>
+          <Switch
+            checked={isDark}
+            onChange={toggleMode}
+            color="primary"
+          />
+        </Box>
+
+        <Divider sx={{ my: 3 }} />
+
+        {/* Theme Presets */}
+        <Typography variant="subtitle1" sx={{ mb: 0.5, fontSize: '0.9375rem' }}>ธีม</Typography>
+        <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mb: 2.5 }}>
+          เลือกชุดสีที่ชอบ — ใช้ได้ทั้งโหมดสว่างและมืด
+        </Typography>
+
+        <Grid container spacing={2} role="radiogroup" aria-label="เลือกธีม">
+          {Object.values(THEME_PRESETS).map((preset) => (
+            <Grid item xs={6} sm={4} key={preset.id}>
+              <ThemePresetCard
+                preset={preset}
+                isSelected={themeId === preset.id}
+                onClick={() => setThemeId(preset.id)}
+                mode={mode}
               />
             </Grid>
           ))}

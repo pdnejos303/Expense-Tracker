@@ -166,17 +166,17 @@ function ReportsPage() {
   };
 
   const columns = [
-    { field: 'date', headerName: 'วันที่', width: 150, valueGetter: (value, row) => formatDateTH(row?.date) },
-    { field: 'type', headerName: 'ประเภท', width: 100, valueGetter: (value) => value === 'income' ? 'รายรับ' : 'รายจ่าย' },
-    { field: 'category', headerName: 'หมวดหมู่', width: 150 },
-    { field: 'amount', headerName: 'จำนวนเงิน', width: 130, valueFormatter: (value) => formatCurrency(value) },
-    { field: 'note', headerName: 'หมายเหตุ', width: 200 },
+    { field: 'date', headerName: 'วันที่', flex: 1, minWidth: 100, valueGetter: (value, row) => formatDateTH(row?.date) },
+    { field: 'type', headerName: 'ประเภท', flex: 0.7, minWidth: 80, valueGetter: (value) => value === 'income' ? 'รายรับ' : 'รายจ่าย' },
+    { field: 'category', headerName: 'หมวดหมู่', flex: 1, minWidth: 100 },
+    { field: 'amount', headerName: 'จำนวนเงิน', flex: 0.9, minWidth: 100, valueFormatter: (value) => formatCurrency(value) },
+    { field: 'note', headerName: 'หมายเหตุ', flex: 1.2, minWidth: 100 },
   ];
 
   const chartHeight = useChartHeight();
   const currencyTooltip = (v) => formatCurrency(v);
   const customTooltipStyle = {
-    backgroundColor: '#fff', border: '1px solid #e2e8f0',
+    backgroundColor: 'var(--tooltip-bg, #fff)', border: '1px solid var(--tooltip-border, #e2e8f0)',
     borderRadius: '12px', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', padding: '8px 12px',
   };
 
@@ -273,16 +273,17 @@ function ReportsPage() {
             <Box sx={{ p: { xs: 2, sm: 3 }, pb: 0 }}>
               <Typography variant="subtitle1" sx={{ fontSize: '0.9375rem' }}>รายการธุรกรรม</Typography>
             </Box>
-            <Box sx={{ height: 400, width: '100%', p: { xs: 1, sm: 2 } }}>
+            <Box sx={{ height: { xs: 350, sm: 400 }, width: '100%', p: { xs: 0.5, sm: 2 } }}>
               <DataGrid
                 rows={transactions}
                 columns={columns}
                 pageSizeOptions={[10, 25, 50]}
                 initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+                density="compact"
                 sx={{
                   border: 'none',
-                  '& .MuiDataGrid-columnHeaders': { bgcolor: '#f8fafc' },
-                  '& .MuiDataGrid-cell': { borderColor: '#f1f5f9' },
+                  '& .MuiDataGrid-columnHeaders': { bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : '#f8fafc' },
+                  '& .MuiDataGrid-cell': { borderColor: (t) => t.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#f1f5f9', fontSize: '0.8125rem' },
                 }}
               />
             </Box>

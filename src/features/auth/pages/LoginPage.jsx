@@ -105,7 +105,7 @@ function LoginPage() {
         justifyContent: 'center',
         px: 2,
         py: 4,
-        background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
+        bgcolor: 'background.default',
       }}
     >
       <Paper
@@ -183,9 +183,9 @@ function LoginPage() {
             startIcon={<GoogleIcon />}
             sx={{
               py: 1.25,
-              borderColor: '#e2e8f0',
+              borderColor: 'divider',
               color: 'text.primary',
-              '&:hover': { borderColor: '#94a3b8', bgcolor: '#f8fafc' },
+              '&:hover': { borderColor: 'text.secondary', bgcolor: 'action.hover' },
             }}
           >
             Google
@@ -198,9 +198,9 @@ function LoginPage() {
             startIcon={<FacebookIcon />}
             sx={{
               py: 1.25,
-              borderColor: '#e2e8f0',
+              borderColor: 'divider',
               color: 'text.primary',
-              '&:hover': { borderColor: '#94a3b8', bgcolor: '#f8fafc' },
+              '&:hover': { borderColor: 'text.secondary', bgcolor: 'action.hover' },
             }}
           >
             Facebook
