@@ -15,6 +15,7 @@ import {
   alpha,
   Switch,
   useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
@@ -50,7 +51,7 @@ function ThemePresetCard({ preset, isSelected, onClick, mode }) {
         overflow: 'hidden',
         cursor: 'pointer',
         border: '2px solid',
-        borderColor: isSelected ? preset.primary : 'transparent',
+        borderColor: isSelected ? preset.primary : 'divider',
         boxShadow: isSelected ? `0 0 0 3px ${alpha(preset.primary, 0.25)}` : 'none',
         transition: 'all 0.2s ease',
         '&:hover': {
@@ -66,10 +67,10 @@ function ThemePresetCard({ preset, isSelected, onClick, mode }) {
         },
       }}
     >
-      {/* Preview header with gradient */}
+      {/* Gradient header */}
       <Box
         sx={{
-          height: 64,
+          height: { xs: 48, md: 56 },
           background: `linear-gradient(135deg, ${preset.preview[0]} 0%, ${preset.preview[1]} 50%, ${preset.preview[2]} 100%)`,
           position: 'relative',
         }}
@@ -78,10 +79,10 @@ function ThemePresetCard({ preset, isSelected, onClick, mode }) {
           <Box
             sx={{
               position: 'absolute',
-              top: 8,
-              right: 8,
-              width: 24,
-              height: 24,
+              top: 6,
+              right: 6,
+              width: 22,
+              height: 22,
               borderRadius: '50%',
               bgcolor: '#fff',
               display: 'flex',
@@ -89,48 +90,33 @@ function ThemePresetCard({ preset, isSelected, onClick, mode }) {
               justifyContent: 'center',
             }}
           >
-            <CheckCircleIcon sx={{ fontSize: 24, color: preset.primary }} />
+            <CheckCircleIcon sx={{ fontSize: 22, color: preset.primary }} />
           </Box>
         )}
       </Box>
 
-      {/* Preview body - fake UI */}
-      <Box
-        sx={{
-          p: 1.5,
-          bgcolor: isDark ? '#141829' : '#f8fafc',
-        }}
-      >
-        {/* Fake sidebar + content */}
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          {/* Mini sidebar */}
+      {/* Mini preview */}
+      <Box sx={{ p: 1.25, bgcolor: isDark ? '#141829' : '#f8fafc' }}>
+        <Box sx={{ display: 'flex', gap: 0.75 }}>
           <Box sx={{
-            width: 28,
-            borderRadius: '6px',
+            width: 24,
+            borderRadius: '4px',
             bgcolor: isDark ? '#080b14' : '#0f172a',
-            p: 0.5,
+            p: 0.4,
             display: 'flex',
             flexDirection: 'column',
-            gap: 0.3,
+            gap: 0.25,
           }}>
             {[0, 1, 2].map((i) => (
-              <Box
-                key={i}
-                sx={{
-                  height: 4,
-                  borderRadius: 1,
-                  bgcolor: i === 0 ? preset.primary : alpha('#fff', 0.15),
-                }}
-              />
+              <Box key={i} sx={{ height: 3, borderRadius: 0.5, bgcolor: i === 0 ? preset.primary : alpha('#fff', 0.15) }} />
             ))}
           </Box>
-          {/* Mini content */}
-          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            <Box sx={{ display: 'flex', gap: 0.5 }}>
-              <Box sx={{ flex: 1, height: 14, borderRadius: '4px', bgcolor: alpha(preset.primary, 0.15) }} />
-              <Box sx={{ flex: 1, height: 14, borderRadius: '4px', bgcolor: isDark ? alpha('#fff', 0.06) : alpha('#000', 0.06) }} />
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 0.4 }}>
+            <Box sx={{ display: 'flex', gap: 0.4 }}>
+              <Box sx={{ flex: 1, height: 10, borderRadius: '3px', bgcolor: alpha(preset.primary, 0.15) }} />
+              <Box sx={{ flex: 1, height: 10, borderRadius: '3px', bgcolor: isDark ? alpha('#fff', 0.06) : alpha('#000', 0.06) }} />
             </Box>
-            <Box sx={{ height: 20, borderRadius: '4px', bgcolor: isDark ? alpha('#fff', 0.04) : alpha('#000', 0.04) }} />
+            <Box sx={{ height: 16, borderRadius: '3px', bgcolor: isDark ? alpha('#fff', 0.04) : alpha('#000', 0.04) }} />
           </Box>
         </Box>
       </Box>
@@ -138,8 +124,8 @@ function ThemePresetCard({ preset, isSelected, onClick, mode }) {
       {/* Label */}
       <Box
         sx={{
-          px: 1.5,
-          py: 1,
+          px: 1.25,
+          py: 0.75,
           bgcolor: isDark ? '#0c0f1a' : '#ffffff',
           borderTop: '1px solid',
           borderColor: isDark ? alpha('#fff', 0.06) : alpha('#000', 0.06),
@@ -147,7 +133,7 @@ function ThemePresetCard({ preset, isSelected, onClick, mode }) {
         }}
       >
         <Typography sx={{
-          fontSize: '0.8125rem',
+          fontSize: '0.75rem',
           fontWeight: isSelected ? 700 : 500,
           color: isSelected ? preset.primary : (isDark ? '#94a3b8' : '#475569'),
         }}>
@@ -155,6 +141,14 @@ function ThemePresetCard({ preset, isSelected, onClick, mode }) {
         </Typography>
       </Box>
     </Box>
+  );
+}
+
+function SectionTitle({ children }) {
+  return (
+    <Typography variant="subtitle1" sx={{ mb: 1.5, fontSize: '0.9375rem' }}>
+      {children}
+    </Typography>
   );
 }
 
@@ -168,6 +162,7 @@ function SettingsPage() {
   const { themeId, setThemeId, mode, toggleMode } = useThemeSettings();
   const theme = useTheme();
   const isDark = mode === 'dark';
+  const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -179,9 +174,6 @@ function SettingsPage() {
         setBudgetAlerts(data.budgetAlerts || false);
         setPaymentDueAlerts(data.paymentDueAlerts || false);
         if (data.themeId) setThemeId(data.themeId);
-        if (data.themeMode) {
-          // Sync from Firestore if exists
-        }
       }
       setLoading(false);
     };
@@ -206,92 +198,145 @@ function SettingsPage() {
 
   if (loading) return <LoadingScreen />;
 
-  return (
-    <PageContainer title="การตั้งค่า" maxWidth="sm">
-      <Paper sx={{ p: { xs: 3, sm: 4 } }}>
-        {/* Currency */}
-        <Typography variant="subtitle1" sx={{ mb: 1.5, fontSize: '0.9375rem' }}>สกุลเงิน</Typography>
-        <FormControl fullWidth size="small">
-          <InputLabel>สกุลเงิน</InputLabel>
-          <Select value={currency} onChange={(e) => setCurrency(e.target.value)} label="สกุลเงิน">
-            {currencies.map((curr) => (<MenuItem key={curr} value={curr}>{curr}</MenuItem>))}
-          </Select>
-        </FormControl>
+  // ─── General Settings Panel ─────────────────────────
+  const generalPanel = (
+    <Paper sx={{ p: { xs: 2.5, sm: 3 }, height: '100%' }}>
+      {/* Currency */}
+      <SectionTitle>สกุลเงิน</SectionTitle>
+      <FormControl fullWidth size="small">
+        <InputLabel>สกุลเงิน</InputLabel>
+        <Select value={currency} onChange={(e) => setCurrency(e.target.value)} label="สกุลเงิน">
+          {currencies.map((curr) => (<MenuItem key={curr} value={curr}>{curr}</MenuItem>))}
+        </Select>
+      </FormControl>
 
-        <Divider sx={{ my: 3 }} />
+      <Divider sx={{ my: 3 }} />
 
-        {/* Notifications */}
-        <Typography variant="subtitle1" sx={{ mb: 1.5, fontSize: '0.9375rem' }}>การแจ้งเตือน</Typography>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-          <FormControlLabel
-            control={<Checkbox checked={budgetAlerts} onChange={(e) => setBudgetAlerts(e.target.checked)} />}
-            label={<Typography sx={{ fontSize: '0.875rem' }}>แจ้งเตือนเมื่อใกล้ถึงงบประมาณที่ตั้งไว้</Typography>}
-          />
-          <FormControlLabel
-            control={<Checkbox checked={paymentDueAlerts} onChange={(e) => setPaymentDueAlerts(e.target.checked)} />}
-            label={<Typography sx={{ fontSize: '0.875rem' }}>แจ้งเตือนวันครบกำหนดชำระหนี้หรือบิล</Typography>}
-          />
-        </Box>
+      {/* Notifications */}
+      <SectionTitle>การแจ้งเตือน</SectionTitle>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+        <FormControlLabel
+          control={<Checkbox checked={budgetAlerts} onChange={(e) => setBudgetAlerts(e.target.checked)} />}
+          label={<Typography sx={{ fontSize: '0.875rem' }}>แจ้งเตือนเมื่อใกล้ถึงงบประมาณที่ตั้งไว้</Typography>}
+        />
+        <FormControlLabel
+          control={<Checkbox checked={paymentDueAlerts} onChange={(e) => setPaymentDueAlerts(e.target.checked)} />}
+          label={<Typography sx={{ fontSize: '0.875rem' }}>แจ้งเตือนวันครบกำหนดชำระหนี้หรือบิล</Typography>}
+        />
+      </Box>
 
-        <Divider sx={{ my: 3 }} />
+      <Divider sx={{ my: 3 }} />
 
-        {/* Dark Mode Toggle */}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            {isDark ? (
-              <DarkModeIcon sx={{ color: 'primary.main', fontSize: 22 }} />
-            ) : (
-              <LightModeIcon sx={{ color: '#f59e0b', fontSize: 22 }} />
-            )}
-            <Box>
-              <Typography variant="subtitle1" sx={{ fontSize: '0.9375rem', lineHeight: 1.3 }}>
-                โหมดมืด
-              </Typography>
-              <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
-                {isDark ? 'เปิดอยู่ — ถนอมสายตา' : 'ปิดอยู่ — โหมดสว่าง'}
-              </Typography>
-            </Box>
+      {/* Dark Mode */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          {isDark ? (
+            <DarkModeIcon sx={{ color: 'primary.main', fontSize: 22 }} />
+          ) : (
+            <LightModeIcon sx={{ color: '#f59e0b', fontSize: 22 }} />
+          )}
+          <Box>
+            <Typography variant="subtitle1" sx={{ fontSize: '0.9375rem', lineHeight: 1.3 }}>
+              โหมดมืด
+            </Typography>
+            <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
+              {isDark ? 'เปิดอยู่ — ถนอมสายตา' : 'ปิดอยู่ — โหมดสว่าง'}
+            </Typography>
           </Box>
-          <Switch
-            checked={isDark}
-            onChange={toggleMode}
-            color="primary"
-          />
         </Box>
+        <Switch checked={isDark} onChange={toggleMode} color="primary" />
+      </Box>
 
-        <Divider sx={{ my: 3 }} />
+      {/* Save button - only on mobile (single column) */}
+      {!isDesktop && (
+        <>
+          <Divider sx={{ my: 3 }} />
+          {/* Theme section inline on mobile */}
+          <SectionTitle>ธีม</SectionTitle>
+          <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mb: 2 }}>
+            เลือกชุดสีที่ชอบ — ใช้ได้ทั้งโหมดสว่างและมืด
+          </Typography>
+          <Grid container spacing={1.5} role="radiogroup" aria-label="เลือกธีม">
+            {Object.values(THEME_PRESETS).map((preset) => (
+              <Grid item xs={4} key={preset.id}>
+                <ThemePresetCard
+                  preset={preset}
+                  isSelected={themeId === preset.id}
+                  onClick={() => setThemeId(preset.id)}
+                  mode={mode}
+                />
+              </Grid>
+            ))}
+          </Grid>
+          <Button
+            variant="contained"
+            onClick={handleSaveSettings}
+            disabled={saving}
+            fullWidth
+            startIcon={<SaveIcon />}
+            size="large"
+            sx={{ mt: 3, py: 1.5 }}
+          >
+            {saving ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}
+          </Button>
+        </>
+      )}
+    </Paper>
+  );
 
-        {/* Theme Presets */}
-        <Typography variant="subtitle1" sx={{ mb: 0.5, fontSize: '0.9375rem' }}>ธีม</Typography>
-        <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mb: 2.5 }}>
-          เลือกชุดสีที่ชอบ — ใช้ได้ทั้งโหมดสว่างและมืด
-        </Typography>
+  // ─── Theme Panel (desktop only) ─────────────────────
+  const themePanel = (
+    <Paper sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <SectionTitle>ธีม</SectionTitle>
+      <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mb: 2.5 }}>
+        เลือกชุดสีที่ชอบ — ใช้ได้ทั้งโหมดสว่างและมืด
+      </Typography>
 
-        <Grid container spacing={2} role="radiogroup" aria-label="เลือกธีม">
-          {Object.values(THEME_PRESETS).map((preset) => (
-            <Grid item xs={6} sm={4} key={preset.id}>
-              <ThemePresetCard
-                preset={preset}
-                isSelected={themeId === preset.id}
-                onClick={() => setThemeId(preset.id)}
-                mode={mode}
-              />
-            </Grid>
-          ))}
+      <Grid container spacing={2} role="radiogroup" aria-label="เลือกธีม" sx={{ mb: 3 }}>
+        {Object.values(THEME_PRESETS).map((preset) => (
+          <Grid item xs={6} lg={4} key={preset.id}>
+            <ThemePresetCard
+              preset={preset}
+              isSelected={themeId === preset.id}
+              onClick={() => setThemeId(preset.id)}
+              mode={mode}
+            />
+          </Grid>
+        ))}
+      </Grid>
+
+      <Box sx={{ flex: 1 }} />
+
+      <Button
+        variant="contained"
+        onClick={handleSaveSettings}
+        disabled={saving}
+        fullWidth
+        startIcon={<SaveIcon />}
+        size="large"
+        sx={{ py: 1.5 }}
+      >
+        {saving ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}
+      </Button>
+    </Paper>
+  );
+
+  return (
+    <PageContainer title="การตั้งค่า" maxWidth="lg">
+      {isDesktop ? (
+        /* Desktop: 2-column layout */
+        <Grid container spacing={3}>
+          <Grid item md={5} lg={4}>
+            {generalPanel}
+          </Grid>
+          <Grid item md={7} lg={8}>
+            {themePanel}
+          </Grid>
         </Grid>
-
-        <Button
-          variant="contained"
-          onClick={handleSaveSettings}
-          disabled={saving}
-          fullWidth
-          startIcon={<SaveIcon />}
-          size="large"
-          sx={{ mt: 4, py: 1.5 }}
-        >
-          {saving ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}
-        </Button>
-      </Paper>
+      ) : (
+        /* Mobile: single column */
+        generalPanel
+      )}
 
       <SnackbarAlert open={snackbar.open} message={snackbar.message} severity={snackbar.severity} onClose={closeSnackbar} />
     </PageContainer>
