@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /d/111Work/1111Project/Winai3/winai3/src -type f -name \"*.tsx\" | xargs wc -l | tail -1)",
+      "Bash(wc -l /d/111Work/1111Project/Winai3/winai3/src/components/layout/*.tsx 2>/dev/null | tail -1)",
+      "Bash(ls D:/111Work/1111Project/Winai3/winai3/src/app/[locale]/app/dashboard/)",
+      "Bash(npx next:*)",
+      "Bash(xxd -l 100 \"D:/111Work/1111Project/Winai3/winai3/src/app/page.tsx\")",
+      "Bash(which pnpm:*)",
+      "Bash(cd \"D:/111Work/1111Project/Winai3/winai3\" && rm -rf node_modules package-lock.json)",
+      "Bash(cd \"D:/111Work/1111Project/Winai3/winai3\" && pnpm install 2>&1 | tail -30)",
+      "Bash(cd \"D:/111Work/1111Project/Winai3/winai3\" && pnpm approve-builds @prisma/client prisma @prisma/engines @swc/core sharp unrs-resolver 2>&1)",
+      "Bash(cd \"D:/111Work/1111Project/Winai3/winai3\" && pnpm install 2>&1 | tail -20)",
+      "Bash(cd \"D:/111Work/1111Project/Winai3/winai3\" && pnpm build 2>&1 | tail -20)",
+      "Bash(cd \"D:/111Work/1111Project/Winai3/winai3\" && pnpm exec prisma generate 2>&1)",
+      "Bash(cd \"D:/111Work/1111Project/Winai3/winai3\" && pnpm add -D eslint-plugin-react-hooks 2>&1 | tail -5)",
+      "Bash(cd \"D:/111Work/1111Project/Winai3/winai3\" && pnpm build 2>&1 | tail -30)",
+      "Bash(cd \"D:/111Work/1111Project/Winai3/winai3\" && pnpm build 2>&1 | tail -40)",
+      "Bash(cd \"D:/111Work/1111Project/Winai3/winai3\" && pnpm build 2>&1 | tail -15)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(cd:*)",
+      "Bash(cat:*)",
+      "Bash(grep:*)",
+      "Bash(taskkill:*)",
+      "Bash(pnpm add:*)",
+      "Bash(*)",
+      "ReadFileSystem(*)",
+      "WriteFileSystem(*)",
+      "ListFiles(*)"
+    ]
+  }
+}
