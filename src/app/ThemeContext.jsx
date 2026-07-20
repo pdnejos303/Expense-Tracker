@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useMemo, useCallback, useEffect } from 'react';
 import { createAppTheme, THEME_PRESETS, DEFAULT_THEME_ID, DEFAULT_MODE } from '@/app/theme';
+import { useAuth } from '@/features/auth/hooks/useAuth';
 
 const STORAGE_KEY_THEME = 'app-theme-id';
 const STORAGE_KEY_MODE = 'app-theme-mode';
@@ -7,6 +8,8 @@ const STORAGE_KEY_MODE = 'app-theme-mode';
 const ThemeContext = createContext(null);
 
 export function ThemeSettingsProvider({ children }) {
+  const { currentUser } = useAuth();
+
   const [themeId, setThemeId] = useState(() => {
     return localStorage.getItem(STORAGE_KEY_THEME) || DEFAULT_THEME_ID;
   });
@@ -31,7 +34,11 @@ export function ThemeSettingsProvider({ children }) {
     setMode((prev) => (prev === 'light' ? 'dark' : 'light'));
   }, []);
 
-  const theme = useMemo(() => createAppTheme(themeId, mode), [themeId, mode]);
+  // Before login: always use default theme in light mode (white)
+  const activeThemeId = currentUser ? themeId : DEFAULT_THEME_ID;
+  const activeMode = currentUser ? mode : 'light';
+
+  const theme = useMemo(() => createAppTheme(activeThemeId, activeMode), [activeThemeId, activeMode]);
 
   const value = useMemo(
     () => ({

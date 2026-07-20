@@ -21,25 +21,29 @@ import SaveIcon from '@mui/icons-material/Save';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import { useTranslation } from 'react-i18next';
 import { auth, firestore } from '@/lib/firebase';
 import { getFirebaseErrorMessage } from '@/lib/firebaseErrors';
-import { useSnackbar } from '@/shared/hooks/useSnackbar';
-import SnackbarAlert from '@/shared/components/SnackbarAlert';
+import { showToast } from '@/lib/swal';
 import PageContainer from '@/shared/components/PageContainer';
 import LoadingScreen from '@/shared/components/LoadingScreen';
 import { useThemeSettings } from '@/app/ThemeContext';
 import { THEME_PRESETS } from '@/app/theme';
+import { LANGUAGES } from '@/lib/i18n';
+import { motion } from 'framer-motion';
+import { staggerContainer, staggerItem } from '@/shared/utils/animations';
 
 const currencies = ['THB', 'USD', 'EUR', 'JPY'];
 
 function ThemePresetCard({ preset, isSelected, onClick, mode }) {
+  const { t } = useTranslation();
   const isDark = mode === 'dark';
 
   return (
     <Box
       role="radio"
       aria-checked={isSelected}
-      aria-label={preset.nameLocal}
+      aria-label={t(preset.nameLocal)}
       tabIndex={0}
       onClick={onClick}
       onKeyDown={(e) => {
@@ -137,7 +141,7 @@ function ThemePresetCard({ preset, isSelected, onClick, mode }) {
           fontWeight: isSelected ? 700 : 500,
           color: isSelected ? preset.primary : (isDark ? '#94a3b8' : '#475569'),
         }}>
-          {preset.nameLocal}
+          {t(preset.nameLocal)}
         </Typography>
       </Box>
     </Box>
@@ -153,10 +157,10 @@ function SectionTitle({ children }) {
 }
 
 function SettingsPage() {
+  const { t, i18n } = useTranslation();
   const [currency, setCurrency] = useState('THB');
   const [budgetAlerts, setBudgetAlerts] = useState(false);
   const [paymentDueAlerts, setPaymentDueAlerts] = useState(false);
-  const { snackbar, showSnackbar, closeSnackbar } = useSnackbar();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const { themeId, setThemeId, mode, toggleMode } = useThemeSettings();
@@ -191,21 +195,44 @@ function SettingsPage() {
         themeId,
         themeMode: mode,
       });
-      showSnackbar('บันทึกการตั้งค่าเรียบร้อยแล้ว!');
-    } catch (err) { showSnackbar(getFirebaseErrorMessage(err), 'error'); }
+      showToast(t('settings.saveSuccess'));
+    } catch (err) { showToast(getFirebaseErrorMessage(err), 'error'); }
     finally { setSaving(false); }
   };
 
   if (loading) return <LoadingScreen />;
 
+  const handleLanguageChange = (langCode) => {
+    i18n.changeLanguage(langCode);
+  };
+
   // ─── General Settings Panel ─────────────────────────
   const generalPanel = (
     <Paper sx={{ p: { xs: 2.5, sm: 3 }, height: '100%' }}>
-      {/* Currency */}
-      <SectionTitle>สกุลเงิน</SectionTitle>
+      {/* Language */}
+      <SectionTitle>{t('settings.language')}</SectionTitle>
       <FormControl fullWidth size="small">
-        <InputLabel>สกุลเงิน</InputLabel>
-        <Select value={currency} onChange={(e) => setCurrency(e.target.value)} label="สกุลเงิน">
+        <InputLabel>{t('settings.language')}</InputLabel>
+        <Select
+          value={i18n.language}
+          onChange={(e) => handleLanguageChange(e.target.value)}
+          label={t('settings.language')}
+        >
+          {LANGUAGES.map((lang) => (
+            <MenuItem key={lang.code} value={lang.code} sx={{ gap: 1.5 }}>
+              <span>{lang.flag}</span> {lang.label}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+
+      <Divider sx={{ my: 3 }} />
+
+      {/* Currency */}
+      <SectionTitle>{t('settings.currency')}</SectionTitle>
+      <FormControl fullWidth size="small">
+        <InputLabel>{t('settings.currency')}</InputLabel>
+        <Select value={currency} onChange={(e) => setCurrency(e.target.value)} label={t('settings.currency')}>
           {currencies.map((curr) => (<MenuItem key={curr} value={curr}>{curr}</MenuItem>))}
         </Select>
       </FormControl>
@@ -213,15 +240,15 @@ function SettingsPage() {
       <Divider sx={{ my: 3 }} />
 
       {/* Notifications */}
-      <SectionTitle>การแจ้งเตือน</SectionTitle>
+      <SectionTitle>{t('settings.notifications')}</SectionTitle>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
         <FormControlLabel
           control={<Checkbox checked={budgetAlerts} onChange={(e) => setBudgetAlerts(e.target.checked)} />}
-          label={<Typography sx={{ fontSize: '0.875rem' }}>แจ้งเตือนเมื่อใกล้ถึงงบประมาณที่ตั้งไว้</Typography>}
+          label={<Typography sx={{ fontSize: '0.875rem' }}>{t('settings.budgetAlert')}</Typography>}
         />
         <FormControlLabel
           control={<Checkbox checked={paymentDueAlerts} onChange={(e) => setPaymentDueAlerts(e.target.checked)} />}
-          label={<Typography sx={{ fontSize: '0.875rem' }}>แจ้งเตือนวันครบกำหนดชำระหนี้หรือบิล</Typography>}
+          label={<Typography sx={{ fontSize: '0.875rem' }}>{t('settings.paymentAlert')}</Typography>}
         />
       </Box>
 
@@ -237,10 +264,10 @@ function SettingsPage() {
           )}
           <Box>
             <Typography variant="subtitle1" sx={{ fontSize: '0.9375rem', lineHeight: 1.3 }}>
-              โหมดมืด
+              {t('settings.darkMode')}
             </Typography>
             <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
-              {isDark ? 'เปิดอยู่ — ถนอมสายตา' : 'ปิดอยู่ — โหมดสว่าง'}
+              {isDark ? t('settings.darkModeOn') : t('settings.darkModeOff')}
             </Typography>
           </Box>
         </Box>
@@ -252,11 +279,11 @@ function SettingsPage() {
         <>
           <Divider sx={{ my: 3 }} />
           {/* Theme section inline on mobile */}
-          <SectionTitle>ธีม</SectionTitle>
+          <SectionTitle>{t('settings.theme')}</SectionTitle>
           <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mb: 2 }}>
-            เลือกชุดสีที่ชอบ — ใช้ได้ทั้งโหมดสว่างและมืด
+            {t('settings.themeDesc')}
           </Typography>
-          <Grid container spacing={1.5} role="radiogroup" aria-label="เลือกธีม">
+          <Grid container spacing={1.5} role="radiogroup" aria-label={t('settings.selectTheme')}>
             {Object.values(THEME_PRESETS).map((preset) => (
               <Grid item xs={4} key={preset.id}>
                 <ThemePresetCard
@@ -277,7 +304,7 @@ function SettingsPage() {
             size="large"
             sx={{ mt: 3, py: 1.5 }}
           >
-            {saving ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}
+            {saving ? t('common.saving') : t('common.save')}
           </Button>
         </>
       )}
@@ -287,14 +314,14 @@ function SettingsPage() {
   // ─── Theme Panel (desktop only) ─────────────────────
   const themePanel = (
     <Paper sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <SectionTitle>ธีม</SectionTitle>
+      <SectionTitle>{t('settings.theme')}</SectionTitle>
       <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mb: 2.5 }}>
-        เลือกชุดสีที่ชอบ — ใช้ได้ทั้งโหมดสว่างและมืด
+        {t('settings.themeDesc')}
       </Typography>
 
-      <Grid container spacing={2} role="radiogroup" aria-label="เลือกธีม" sx={{ mb: 3 }}>
+      <Grid container spacing={2} role="radiogroup" aria-label={t('settings.selectTheme')} sx={{ mb: 3 }} component={motion.div} variants={staggerContainer} initial="initial" animate="animate">
         {Object.values(THEME_PRESETS).map((preset) => (
-          <Grid item xs={6} lg={4} key={preset.id}>
+          <Grid item xs={6} lg={4} key={preset.id} component={motion.div} variants={staggerItem}>
             <ThemePresetCard
               preset={preset}
               isSelected={themeId === preset.id}
@@ -316,13 +343,13 @@ function SettingsPage() {
         size="large"
         sx={{ py: 1.5 }}
       >
-        {saving ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}
+        {saving ? t('common.saving') : t('common.save')}
       </Button>
     </Paper>
   );
 
   return (
-    <PageContainer title="การตั้งค่า" maxWidth="lg">
+    <PageContainer title={t('settings.title')} maxWidth="lg">
       {isDesktop ? (
         /* Desktop: 2-column layout */
         <Grid container spacing={3}>
@@ -338,7 +365,6 @@ function SettingsPage() {
         generalPanel
       )}
 
-      <SnackbarAlert open={snackbar.open} message={snackbar.message} severity={snackbar.severity} onClose={closeSnackbar} />
     </PageContainer>
   );
 }

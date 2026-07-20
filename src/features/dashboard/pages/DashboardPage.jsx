@@ -34,15 +34,17 @@ import {
   AutoFixHigh,
   ErrorOutline,
 } from '@mui/icons-material';
-import { firestore, auth } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
+import { userQuery, mapDocs } from '@/lib/db';
 import { toDate, formatDateTH } from '@/lib/timestamp';
 import { formatCurrency } from '@/lib/format';
 import { getFinancialInsights, detectAnomalies } from '@/lib/openai';
-import { CHART_COLORS, CHART_MARGIN, INCOME_COLOR, EXPENSE_COLOR, GRID_LINE_COLOR } from '@/shared/constants/chart';
+import { CHART_COLORS, CHART_MARGIN, INCOME_COLOR, EXPENSE_COLOR, GRID_LINE_COLOR, getTooltipStyle } from '@/shared/constants/chart';
 import { useChartHeight } from '@/shared/hooks/useChartHeight';
 import PageContainer from '@/shared/components/PageContainer';
 import LoadingScreen from '@/shared/components/LoadingScreen';
 import EmptyState from '@/shared/components/EmptyState';
+import GradientStatCard from '@/shared/components/GradientStatCard';
 import {
   PieChart,
   Pie,
@@ -95,42 +97,6 @@ function getPreviousRange(start, end) {
 }
 
 /* ─── Components ─── */
-function SummaryCard({ title, amount, icon, gradient, change }) {
-  return (
-    <Paper sx={{ p: 0, overflow: 'hidden', position: 'relative', border: 'none' }}>
-      <Box sx={{ background: gradient, p: { xs: 2.5, sm: 3 }, color: '#fff' }}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-          <Box>
-            <Typography sx={{ fontSize: '0.8125rem', fontWeight: 500, color: alpha('#fff', 0.85), mb: 0.5 }}>
-              {title}
-            </Typography>
-            <Typography sx={{ fontSize: { xs: '1.5rem', sm: '1.875rem' }, fontWeight: 700, lineHeight: 1.2, letterSpacing: '-0.02em' }}>
-              {typeof amount === 'string' ? amount : formatCurrency(amount)}
-            </Typography>
-            {change !== undefined && change !== null && (
-              <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.75, gap: 0.5 }}>
-                {change > 0 ? (
-                  <ArrowUpward sx={{ fontSize: 14, color: alpha('#fff', 0.9) }} />
-                ) : change < 0 ? (
-                  <ArrowDownward sx={{ fontSize: 14, color: alpha('#fff', 0.9) }} />
-                ) : null}
-                <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: alpha('#fff', 0.9) }}>
-                  {change === 0
-                    ? 'ไม่เปลี่ยนแปลง'
-                    : `${Math.abs(change).toFixed(1)}% จากช่วงก่อนหน้า`}
-                </Typography>
-              </Box>
-            )}
-          </Box>
-          <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: alpha('#fff', 0.2), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {icon}
-          </Box>
-        </Box>
-      </Box>
-    </Paper>
-  );
-}
-
 function ChartCard({ title, children }) {
   return (
     <Paper sx={{ p: { xs: 2, sm: 3 }, height: '100%' }}>
@@ -331,11 +297,11 @@ function DashboardPage() {
     setError(null);
     try {
       const [txSnap, budgetSnap] = await Promise.all([
-        firestore.collection('transactions').where('userId', '==', user.uid).get(),
-        firestore.collection('budgets').where('userId', '==', user.uid).get(),
+        userQuery('transactions', user.uid).get(),
+        userQuery('budgets', user.uid).get(),
       ]);
-      setTransactions(txSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-      setBudgets(budgetSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+      setTransactions(mapDocs(txSnap));
+      setBudgets(mapDocs(budgetSnap));
     } catch (err) {
       console.error('Dashboard fetch error:', err);
       setError('ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
@@ -480,14 +446,7 @@ function DashboardPage() {
   }), [computed]);
 
   const currencyTooltip = (value) => formatCurrency(value);
-  const customTooltipStyle = {
-    backgroundColor: isDark ? '#1e293b' : '#fff',
-    border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0'}`,
-    borderRadius: '12px',
-    boxShadow: isDark ? '0 10px 25px -5px rgb(0 0 0 / 0.4)' : '0 10px 25px -5px rgb(0 0 0 / 0.1)',
-    padding: '8px 12px',
-    color: isDark ? '#f1f5f9' : undefined,
-  };
+  const customTooltipStyle = getTooltipStyle(isDark);
 
   if (loading) return <LoadingScreen />;
 
@@ -560,23 +519,23 @@ function DashboardPage() {
       {/* ─── Summary Cards Row 1 ─── */}
       <Grid container spacing={2.5} sx={{ mb: 2.5 }}>
         <Grid item xs={12} sm={4}>
-          <SummaryCard title={`รายรับ (${range.label})`} amount={computed.rangeIncome} icon={<TrendingUp sx={{ color: '#fff', fontSize: 22 }} />} gradient="linear-gradient(135deg, #22c55e 0%, #16a34a 100%)" change={computed.incomeChange !== 0 ? computed.incomeChange : null} />
+          <GradientStatCard label={`รายรับ (${range.label})`} value={formatCurrency(computed.rangeIncome)} icon={<TrendingUp />} gradient="linear-gradient(135deg, #22c55e 0%, #16a34a 100%)" change={computed.incomeChange !== 0 ? computed.incomeChange : null} />
         </Grid>
         <Grid item xs={12} sm={4}>
-          <SummaryCard title={`รายจ่าย (${range.label})`} amount={computed.rangeExpense} icon={<TrendingDown sx={{ color: '#fff', fontSize: 22 }} />} gradient="linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" change={computed.expenseChange !== 0 ? computed.expenseChange : null} />
+          <GradientStatCard label={`รายจ่าย (${range.label})`} value={formatCurrency(computed.rangeExpense)} icon={<TrendingDown />} gradient="linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" change={computed.expenseChange !== 0 ? computed.expenseChange : null} />
         </Grid>
         <Grid item xs={12} sm={4}>
-          <SummaryCard title="ยอดคงเหลือ" amount={computed.balance} icon={<AccountBalance sx={{ color: '#fff', fontSize: 22 }} />} gradient={computed.balance >= 0 ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' : 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)'} />
+          <GradientStatCard label="ยอดคงเหลือ" value={formatCurrency(computed.balance)} icon={<AccountBalance />} gradient={computed.balance >= 0 ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' : 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)'} />
         </Grid>
       </Grid>
 
       {/* ─── Summary Cards Row 2 ─── */}
       <Grid container spacing={2.5} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={6}>
-          <SummaryCard title={`ค่าใช้จ่ายเฉลี่ย/วัน (${range.label})`} amount={computed.dailyAvg} icon={<CalendarToday sx={{ color: '#fff', fontSize: 22 }} />} gradient="linear-gradient(135deg, #f59e0b 0%, #d97706 100%)" />
+          <GradientStatCard label={`ค่าใช้จ่ายเฉลี่ย/วัน (${range.label})`} value={formatCurrency(computed.dailyAvg)} icon={<CalendarToday />} gradient="linear-gradient(135deg, #f59e0b 0%, #d97706 100%)" />
         </Grid>
         <Grid item xs={12} sm={6}>
-          <SummaryCard title={`อัตราการออม (${range.label})`} amount={`${computed.savingsRate.toFixed(1)}%`} icon={<Savings sx={{ color: '#fff', fontSize: 22 }} />} gradient={computed.savingsRate >= 20 ? 'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)' : computed.savingsRate >= 0 ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'} />
+          <GradientStatCard label={`อัตราการออม (${range.label})`} value={`${computed.savingsRate.toFixed(1)}%`} icon={<Savings />} gradient={computed.savingsRate >= 20 ? 'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)' : computed.savingsRate >= 0 ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'} />
         </Grid>
       </Grid>
 

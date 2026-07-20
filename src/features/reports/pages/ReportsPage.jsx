@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Typography,
   FormControl,
@@ -11,55 +12,41 @@ import {
   Grid,
   Paper,
   Alert,
-  alpha,
+  useTheme,
+  useMediaQuery,
+  Menu,
+  ListItemIcon,
+  ListItemText,
+  Divider,
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import TableChartIcon from '@mui/icons-material/TableChart';
+import GridOnIcon from '@mui/icons-material/GridOn';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import CategoryIcon from '@mui/icons-material/Category';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import { firestore, auth } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
+import { userQuery, mapDocs } from '@/lib/db';
 import { toDate, formatDateTH } from '@/lib/timestamp';
 import { formatCurrency } from '@/lib/format';
-import { CHART_COLORS, CHART_MARGIN, INCOME_COLOR, EXPENSE_COLOR, GRID_LINE_COLOR } from '@/shared/constants/chart';
+import { exportCSV, exportExcel, exportPDF } from '@/lib/exportData';
+import { CHART_COLORS, CHART_MARGIN, INCOME_COLOR, EXPENSE_COLOR, GRID_LINE_COLOR, getTooltipStyle } from '@/shared/constants/chart';
 import { useChartHeight } from '@/shared/hooks/useChartHeight';
 import PageContainer from '@/shared/components/PageContainer';
 import LoadingScreen from '@/shared/components/LoadingScreen';
 import EmptyState from '@/shared/components/EmptyState';
+import GradientStatCard from '@/shared/components/GradientStatCard';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   PieChart, Pie, Cell, ResponsiveContainer,
 } from 'recharts';
 import { DataGrid } from '@mui/x-data-grid';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
-
-function StatCard({ icon, label, value, color }) {
-  return (
-    <Box sx={{
-      p: 2.5,
-      borderRadius: 3,
-      bgcolor: alpha(color, 0.06),
-      border: '1px solid',
-      borderColor: alpha(color, 0.12),
-    }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <Box sx={{
-          width: 36, height: 36, borderRadius: '10px',
-          bgcolor: alpha(color, 0.12),
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          {React.cloneElement(icon, { sx: { fontSize: 18, color } })}
-        </Box>
-        <Box>
-          <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mb: 0.25 }}>{label}</Typography>
-          <Typography sx={{ fontSize: '1.125rem', fontWeight: 700, color: 'text.primary' }}>{value}</Typography>
-        </Box>
-      </Box>
-    </Box>
-  );
-}
+import { motion } from 'framer-motion';
+import { staggerContainer, staggerItem } from '@/shared/utils/animations';
 
 function ReportsPage() {
+  const { t } = useTranslation();
   const [timeRange, setTimeRange] = useState('this_month');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
@@ -71,6 +58,11 @@ function ReportsPage() {
   const [highestIncome, setHighestIncome] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [exportAnchor, setExportAnchor] = useState(null);
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const chartHeight = useChartHeight();
 
   useEffect(() => { fetchData(); }, [timeRange, customStartDate, customEndDate]);
 
@@ -80,7 +72,7 @@ function ReportsPage() {
     setLoading(true);
     setError(null);
 
-    let transactionsRef = firestore.collection('transactions').where('userId', '==', user.uid);
+    let transactionsRef = userQuery('transactions', user.uid);
     let startDate;
     let endDate = new Date();
 
@@ -101,18 +93,14 @@ function ReportsPage() {
     try {
       transactionsRef = transactionsRef.where('date', '>=', startDate).where('date', '<=', endDate);
       const snapshot = await transactionsRef.get();
-      const data = snapshot.docs.map((doc) => {
-        const docData = doc.data();
-        if (!docData.date) return null;
-        return { id: doc.id, ...docData };
-      }).filter(Boolean);
+      const data = mapDocs(snapshot).filter((item) => item.date);
       setTransactions(data);
       processData(data);
       processCategoryData(data);
       calculateStatistics(data);
     } catch (err) {
       console.error('Reports fetch error:', err);
-      setError('ไม่สามารถโหลดข้อมูลรายงานได้ กรุณาลองใหม่อีกครั้ง');
+      setError(t('report.loadError'));
     } finally {
       setLoading(false);
     }
@@ -152,109 +140,135 @@ function ReportsPage() {
     setHighestIncome(incomeData.reduce((max, item) => Math.max(max, item.amount), 0));
   };
 
-  const handleDownloadPDF = () => {
-    const doc = new jsPDF();
-    doc.text('รายงานการเงิน', 20, 10);
-    doc.autoTable({
-      head: [['วันที่', 'ประเภท', 'หมวดหมู่', 'จำนวนเงิน', 'หมายเหตุ']],
-      body: transactions.map((item) => [
-        formatDateTH(item.date), item.type === 'income' ? 'รายรับ' : 'รายจ่าย',
-        item.category, item.amount.toLocaleString('th-TH', { minimumFractionDigits: 2 }), item.note || '',
-      ]),
-    });
-    doc.save('report.pdf');
+  const handleExport = (type) => {
+    setExportAnchor(null);
+    if (type === 'csv') exportCSV(transactions);
+    else if (type === 'excel') exportExcel(transactions);
+    else if (type === 'pdf') exportPDF(transactions);
   };
 
   const columns = [
-    { field: 'date', headerName: 'วันที่', flex: 1, minWidth: 100, valueGetter: (value, row) => formatDateTH(row?.date) },
-    { field: 'type', headerName: 'ประเภท', flex: 0.7, minWidth: 80, valueGetter: (value) => value === 'income' ? 'รายรับ' : 'รายจ่าย' },
-    { field: 'category', headerName: 'หมวดหมู่', flex: 1, minWidth: 100 },
-    { field: 'amount', headerName: 'จำนวนเงิน', flex: 0.9, minWidth: 100, valueFormatter: (value) => formatCurrency(value) },
-    { field: 'note', headerName: 'หมายเหตุ', flex: 1.2, minWidth: 100 },
+    { field: 'date', headerName: t('common.date'), flex: 1, minWidth: 100, valueGetter: (value, row) => formatDateTH(row?.date) },
+    { field: 'type', headerName: t('common.type'), flex: 0.7, minWidth: 80, valueGetter: (value) => value === 'income' ? t('common.income') : t('common.expense') },
+    { field: 'category', headerName: t('common.category'), flex: 1, minWidth: 100 },
+    { field: 'amount', headerName: t('common.amount'), flex: 0.9, minWidth: 100, valueFormatter: (value) => formatCurrency(value) },
+    { field: 'note', headerName: t('common.note'), flex: 1.2, minWidth: 100 },
   ];
 
-  const chartHeight = useChartHeight();
+  const isDark = theme.palette.mode === 'dark';
   const currencyTooltip = (v) => formatCurrency(v);
-  const customTooltipStyle = {
-    backgroundColor: 'var(--tooltip-bg, #fff)', border: '1px solid var(--tooltip-border, #e2e8f0)',
-    borderRadius: '12px', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', padding: '8px 12px',
+  const customTooltipStyle = getTooltipStyle(isDark);
+  const dateInputSx = {
+    '& input[type="date"]': { cursor: 'pointer' },
+    '& input[type="date"]::-webkit-calendar-picker-indicator': {
+      position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+      width: 'auto', height: 'auto', color: 'transparent', background: 'transparent', cursor: 'pointer',
+    },
   };
 
   return (
-    <PageContainer title="รายงาน" maxWidth="xl">
-      {/* Filters */}
-      <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-          <FormControl sx={{ minWidth: { xs: 0, sm: 180 }, flex: { xs: '1 1 100%', sm: '0 0 auto' } }} size="small">
-            <InputLabel>ช่วงเวลา</InputLabel>
-            <Select value={timeRange} onChange={(e) => setTimeRange(e.target.value)} label="ช่วงเวลา">
-              <MenuItem value="today">วันนี้</MenuItem>
-              <MenuItem value="this_week">สัปดาห์นี้</MenuItem>
-              <MenuItem value="this_month">เดือนนี้</MenuItem>
-              <MenuItem value="custom">กำหนดเอง</MenuItem>
+    <PageContainer title={t('report.title')} maxWidth="lg">
+      {/* ─── Filters ─── */}
+      <Paper sx={{ p: { xs: 1.5, sm: 3 }, mb: 2.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: { xs: 1.5, sm: 2 } }}>
+          <FormControl sx={{ minWidth: { xs: 0, sm: 180 }, flex: { xs: '1 1 auto', sm: '0 0 auto' } }} size="small">
+            <InputLabel>{t('report.timeRange')}</InputLabel>
+            <Select value={timeRange} onChange={(e) => setTimeRange(e.target.value)} label={t('report.timeRange')}>
+              <MenuItem value="today">{t('report.today')}</MenuItem>
+              <MenuItem value="this_week">{t('report.thisWeek')}</MenuItem>
+              <MenuItem value="this_month">{t('report.thisMonth')}</MenuItem>
+              <MenuItem value="custom">{t('report.custom')}</MenuItem>
             </Select>
           </FormControl>
           {timeRange === 'custom' && (
             <>
-              <TextField label="วันที่เริ่มต้น" type="date" size="small" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} InputLabelProps={{ shrink: true }} sx={{ '& input[type="date"]': { cursor: 'pointer' }, '& input[type="date"]::-webkit-calendar-picker-indicator': { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: 'auto', height: 'auto', color: 'transparent', background: 'transparent', cursor: 'pointer' } }} />
-              <TextField label="วันที่สิ้นสุด" type="date" size="small" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} InputLabelProps={{ shrink: true }} sx={{ '& input[type="date"]': { cursor: 'pointer' }, '& input[type="date"]::-webkit-calendar-picker-indicator': { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: 'auto', height: 'auto', color: 'transparent', background: 'transparent', cursor: 'pointer' } }} />
+              <TextField label={t('report.startDate')} type="date" size="small" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} InputLabelProps={{ shrink: true }} sx={{ flex: { xs: '1 1 calc(50% - 6px)', sm: '0 0 auto' }, ...dateInputSx }} />
+              <TextField label={t('report.endDate')} type="date" size="small" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} InputLabelProps={{ shrink: true }} sx={{ flex: { xs: '1 1 calc(50% - 6px)', sm: '0 0 auto' }, ...dateInputSx }} />
             </>
           )}
-          <Box sx={{ flex: 1 }} />
-          <Button variant="contained" onClick={handleDownloadPDF} disabled={transactions.length === 0} startIcon={<DownloadIcon />} size="small">
-            ดาวน์โหลด PDF
+          <Box sx={{ flex: 1, display: { xs: 'none', sm: 'block' } }} />
+          <Button
+            variant="contained"
+            onClick={(e) => setExportAnchor(e.currentTarget)}
+            disabled={transactions.length === 0}
+            startIcon={<DownloadIcon />}
+            size="small"
+            sx={{ flex: { xs: '1 1 100%', sm: '0 0 auto' } }}
+          >
+            {t('report.export')}
           </Button>
+          <Menu
+            anchorEl={exportAnchor}
+            open={Boolean(exportAnchor)}
+            onClose={() => setExportAnchor(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+            slotProps={{ paper: { sx: { minWidth: 200, mt: 0.5 } } }}
+          >
+            <MenuItem onClick={() => handleExport('csv')}>
+              <ListItemIcon><TableChartIcon fontSize="small" sx={{ color: '#22c55e' }} /></ListItemIcon>
+              <ListItemText primary="CSV" secondary={t('report.csvDesc')} secondaryTypographyProps={{ fontSize: '0.6875rem' }} />
+            </MenuItem>
+            <MenuItem onClick={() => handleExport('excel')}>
+              <ListItemIcon><GridOnIcon fontSize="small" sx={{ color: '#16a34a' }} /></ListItemIcon>
+              <ListItemText primary="Excel (.xlsx)" secondary={t('report.xlsxDesc')} secondaryTypographyProps={{ fontSize: '0.6875rem' }} />
+            </MenuItem>
+            <MenuItem onClick={() => handleExport('pdf')}>
+              <ListItemIcon><PictureAsPdfIcon fontSize="small" sx={{ color: '#ef4444' }} /></ListItemIcon>
+              <ListItemText primary="PDF" secondary={t('report.pdfDesc')} secondaryTypographyProps={{ fontSize: '0.6875rem' }} />
+            </MenuItem>
+          </Menu>
         </Box>
       </Paper>
 
       {loading ? (
         <LoadingScreen pt={4} />
       ) : error ? (
-        <Box><Alert severity="error" sx={{ mb: 2 }}>{error}</Alert><Button variant="contained" onClick={fetchData}>ลองใหม่</Button></Box>
+        <Box><Alert severity="error" sx={{ mb: 2 }}>{error}</Alert><Button variant="contained" onClick={fetchData}>{t('common.retry')}</Button></Box>
       ) : (
         <>
-          {/* Statistics */}
-          <Grid container spacing={2} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={4}>
-              <StatCard icon={<TrendingDownIcon />} label="ค่าเฉลี่ยรายจ่ายต่อวัน" value={formatCurrency(averageExpense)} color="#ef4444" />
+          {/* ─── Statistics (same Grid pattern as Dashboard) ─── */}
+          <Grid container spacing={2.5} sx={{ mb: 2.5 }} component={motion.div} variants={staggerContainer} initial="initial" animate="animate">
+            <Grid item xs={12} sm={4} component={motion.div} variants={staggerItem}>
+              <GradientStatCard icon={<TrendingDownIcon />} label={t('report.dailyAvgExpense')} value={formatCurrency(averageExpense)} gradient="linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" />
             </Grid>
-            <Grid item xs={12} sm={4}>
-              <StatCard icon={<CategoryIcon />} label="หมวดหมู่ที่ใช้จ่ายสูงสุด" value={highestExpenseCategory || '-'} color="#f59e0b" />
+            <Grid item xs={12} sm={4} component={motion.div} variants={staggerItem}>
+              <GradientStatCard icon={<CategoryIcon />} label={t('report.topCategory')} value={highestExpenseCategory || '-'} gradient="linear-gradient(135deg, #f59e0b 0%, #d97706 100%)" />
             </Grid>
-            <Grid item xs={12} sm={4}>
-              <StatCard icon={<TrendingUpIcon />} label="รายรับสูงสุด" value={formatCurrency(highestIncome)} color="#22c55e" />
+            <Grid item xs={12} sm={4} component={motion.div} variants={staggerItem}>
+              <GradientStatCard icon={<TrendingUpIcon />} label={t('report.topIncome')} value={formatCurrency(highestIncome)} gradient="linear-gradient(135deg, #22c55e 0%, #16a34a 100%)" />
             </Grid>
           </Grid>
 
-          {/* Charts */}
-          <Grid container spacing={2.5} sx={{ mb: 3 }}>
+          {/* ─── Charts ─── */}
+          <Grid container spacing={2.5} sx={{ mb: 2.5 }}>
             <Grid item xs={12} md={6}>
               <Paper sx={{ p: { xs: 2, sm: 3 } }}>
-                <Typography variant="subtitle1" sx={{ mb: 2, fontSize: '0.9375rem' }}>แนวโน้มรายรับและรายจ่าย</Typography>
+                <Typography variant="subtitle1" sx={{ mb: 2, fontSize: '0.9375rem' }}>{t('report.trendTitle')}</Typography>
                 {reportData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={chartHeight}>
                     <LineChart data={reportData} margin={CHART_MARGIN}>
-                      <CartesianGrid stroke={GRID_LINE_COLOR} strokeDasharray="3 3" vertical={false} />
+                      <CartesianGrid stroke={isDark ? 'rgba(255,255,255,0.08)' : GRID_LINE_COLOR} strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11 }} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11 }} />
                       <Tooltip formatter={currencyTooltip} contentStyle={customTooltipStyle} />
                       <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '0.8125rem' }} />
-                      <Line type="monotone" dataKey="income" stroke={INCOME_COLOR} strokeWidth={2.5} dot={{ r: 4 }} name="รายรับ" />
-                      <Line type="monotone" dataKey="expense" stroke={EXPENSE_COLOR} strokeWidth={2.5} dot={{ r: 4 }} name="รายจ่าย" />
+                      <Line type="monotone" dataKey="income" stroke={INCOME_COLOR} strokeWidth={2.5} dot={{ r: 4 }} name={t('common.income')} />
+                      <Line type="monotone" dataKey="expense" stroke={EXPENSE_COLOR} strokeWidth={2.5} dot={{ r: 4 }} name={t('common.expense')} />
                     </LineChart>
                   </ResponsiveContainer>
                 ) : (
-                  <EmptyState message="ไม่มีข้อมูลในช่วงเวลานี้" py={8} />
+                  <EmptyState message={t('report.noDataInRange')} py={8} />
                 )}
               </Paper>
             </Grid>
             <Grid item xs={12} md={6}>
               <Paper sx={{ p: { xs: 2, sm: 3 } }}>
-                <Typography variant="subtitle1" sx={{ mb: 2, fontSize: '0.9375rem' }}>สัดส่วนรายจ่ายตามหมวดหมู่</Typography>
+                <Typography variant="subtitle1" sx={{ mb: 2, fontSize: '0.9375rem' }}>{t('report.expenseByCategory')}</Typography>
                 {categoryData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={chartHeight}>
                     <PieChart>
-                      <Pie data={categoryData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} innerRadius={50} paddingAngle={3} strokeWidth={0}>
+                      <Pie data={categoryData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={isMobile ? 70 : 90} innerRadius={isMobile ? 35 : 50} paddingAngle={3} strokeWidth={0}>
                         {categoryData.map((_, index) => (<Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />))}
                       </Pie>
                       <Tooltip formatter={currencyTooltip} contentStyle={customTooltipStyle} />
@@ -262,31 +276,43 @@ function ReportsPage() {
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
-                  <EmptyState message="ไม่มีข้อมูลรายจ่าย" py={8} />
+                  <EmptyState message={t('report.noExpenseData')} py={8} />
                 )}
               </Paper>
             </Grid>
           </Grid>
 
-          {/* Data Grid */}
+          {/* ─── Transactions ─── */}
           <Paper sx={{ overflow: 'hidden' }}>
             <Box sx={{ p: { xs: 2, sm: 3 }, pb: 0 }}>
-              <Typography variant="subtitle1" sx={{ fontSize: '0.9375rem' }}>รายการธุรกรรม</Typography>
+              <Typography variant="subtitle1" sx={{ fontSize: '0.9375rem' }}>{t('report.transactionList')}</Typography>
             </Box>
-            <Box sx={{ height: { xs: 350, sm: 400 }, width: '100%', p: { xs: 0.5, sm: 2 } }}>
-              <DataGrid
-                rows={transactions}
-                columns={columns}
-                pageSizeOptions={[10, 25, 50]}
-                initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-                density="compact"
-                sx={{
-                  border: 'none',
-                  '& .MuiDataGrid-columnHeaders': { bgcolor: (t) => t.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : '#f8fafc' },
-                  '& .MuiDataGrid-cell': { borderColor: (t) => t.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#f1f5f9', fontSize: '0.8125rem' },
-                }}
-              />
-            </Box>
+            {isMobile ? (
+              <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                {transactions.length === 0 ? (
+                  <EmptyState message={t('report.noTransactions')} py={4} />
+                ) : (
+                  transactions.map((item) => (
+                    <TransactionCard key={item.id} transaction={item} />
+                  ))
+                )}
+              </Box>
+            ) : (
+              <Box sx={{ height: 400, width: '100%', p: 2 }}>
+                <DataGrid
+                  rows={transactions}
+                  columns={columns}
+                  pageSizeOptions={[10, 25, 50]}
+                  initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+                  density="compact"
+                  sx={{
+                    border: 'none',
+                    '& .MuiDataGrid-columnHeaders': { bgcolor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc' },
+                    '& .MuiDataGrid-cell': { borderColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9', fontSize: '0.8125rem' },
+                  }}
+                />
+              </Box>
+            )}
           </Paper>
         </>
       )}

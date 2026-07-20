@@ -1,12 +1,18 @@
 import React from 'react';
 import Navbar from './Navbar';
-import { Box } from '@mui/material';
+import TopHeader from './TopHeader';
+import { Box, useTheme, useMediaQuery } from '@mui/material';
 import { SIDEBAR_WIDTH } from '@/app/theme';
 import { useAuth } from '@/features/auth/hooks/useAuth';
+import { useTranslation } from 'react-i18next';
 
 function Layout({ children }) {
   const { currentUser } = useAuth();
+  const { t } = useTranslation();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const hasSidebar = !!currentUser;
+  const showTopHeader = !!currentUser && !isMobile;
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -38,21 +44,30 @@ function Layout({ children }) {
           },
         }}
       >
-        ข้ามไปยังเนื้อหาหลัก
+        {t('app.skipToContent')}
       </Box>
       <Navbar />
       <Box
-        component="main"
-        id="main-content"
         sx={{
           flexGrow: 1,
           minHeight: '100vh',
           ml: hasSidebar ? { xs: 0, md: `${SIDEBAR_WIDTH}px` } : 0,
-          pb: hasSidebar ? { xs: 10, md: 4 } : 4,
+          display: 'flex',
+          flexDirection: 'column',
           transition: 'margin-left 0.3s ease',
         }}
       >
-        {children}
+        {showTopHeader && <TopHeader />}
+        <Box
+          component="main"
+          id="main-content"
+          sx={{
+            flexGrow: 1,
+            pb: hasSidebar ? { xs: 10, md: 4 } : 4,
+          }}
+        >
+          {children}
+        </Box>
       </Box>
     </Box>
   );

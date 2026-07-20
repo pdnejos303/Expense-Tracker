@@ -16,6 +16,7 @@ import {
   IconButton,
   alpha,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import { firestore, auth } from '@/lib/firebase';
 import { getFirebaseErrorMessage } from '@/lib/firebaseErrors';
 import iconMap, { iconOptions } from '@/shared/constants/iconMap';
@@ -23,6 +24,7 @@ import iconMap, { iconOptions } from '@/shared/constants/iconMap';
 const defaultForm = { name: '', type: 'expense', color: '#3b82f6', icon: 'Category' };
 
 function QuickAddCategoryDialog({ open, onClose, onCreated, defaultType }) {
+  const { t } = useTranslation();
   const [form, setForm] = useState(defaultForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -35,7 +37,7 @@ function QuickAddCategoryDialog({ open, onClose, onCreated, defaultType }) {
   const handleSave = async () => {
     const user = auth.currentUser;
     if (!user) return;
-    if (!form.name.trim()) { setError('กรุณากรอกชื่อหมวดหมู่'); return; }
+    if (!form.name.trim()) { setError(t('category.enterName')); return; }
     setSaving(true);
     setError('');
     try {
@@ -63,10 +65,10 @@ function QuickAddCategoryDialog({ open, onClose, onCreated, defaultType }) {
       fullWidth
       TransitionProps={{ onEnter: handleOpen }}
     >
-      <DialogTitle sx={{ pb: 1 }}>เพิ่มหมวดหมู่ใหม่</DialogTitle>
+      <DialogTitle sx={{ pb: 1 }}>{t('category.addNew')}</DialogTitle>
       <DialogContent>
         <TextField
-          label="ชื่อหมวดหมู่"
+          label={t('category.categoryName')}
           fullWidth
           sx={{ mt: 1.5 }}
           value={form.name}
@@ -76,14 +78,14 @@ function QuickAddCategoryDialog({ open, onClose, onCreated, defaultType }) {
           autoFocus
         />
         <FormControl fullWidth sx={{ mt: 2 }}>
-          <InputLabel>ประเภท</InputLabel>
-          <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} label="ประเภท">
-            <MenuItem value="income">รายรับ</MenuItem>
-            <MenuItem value="expense">รายจ่าย</MenuItem>
+          <InputLabel>{t('common.type')}</InputLabel>
+          <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} label={t('common.type')}>
+            <MenuItem value="income">{t('common.income')}</MenuItem>
+            <MenuItem value="expense">{t('common.expense')}</MenuItem>
           </Select>
         </FormControl>
         <Box sx={{ mt: 2 }}>
-          <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500, color: 'text.primary' }}>สี</Typography>
+          <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500, color: 'text.primary' }}>{t('common.color')}</Typography>
           <Box
             component="label"
             sx={{
@@ -96,7 +98,7 @@ function QuickAddCategoryDialog({ open, onClose, onCreated, defaultType }) {
           </Box>
         </Box>
         <Box sx={{ mt: 2 }}>
-          <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500, color: 'text.primary' }}>ไอคอน</Typography>
+          <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 500, color: 'text.primary' }}>{t('common.icon')}</Typography>
           <Box sx={{ maxHeight: 180, overflowY: 'auto', border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1 }}>
             <Grid container spacing={0.5}>
               {iconOptions.map((iconName) => {
@@ -124,9 +126,9 @@ function QuickAddCategoryDialog({ open, onClose, onCreated, defaultType }) {
         </Box>
       </DialogContent>
       <DialogActions sx={{ p: 2.5, pt: 1 }}>
-        <Button onClick={onClose}>ยกเลิก</Button>
+        <Button onClick={onClose}>{t('common.cancel')}</Button>
         <Button onClick={handleSave} variant="contained" disabled={saving}>
-          {saving ? 'กำลังบันทึก...' : 'เพิ่ม'}
+          {saving ? t('common.saving') : t('common.add')}
         </Button>
       </DialogActions>
     </Dialog>

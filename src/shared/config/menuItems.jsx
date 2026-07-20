@@ -8,18 +8,20 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import PersonIcon from '@mui/icons-material/Person';
 import HistoryIcon from '@mui/icons-material/History';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import FavoriteIcon from '@mui/icons-material/Favorite';
 
 const menuItems = [
-  { text: 'แดชบอร์ด', path: '/', icon: <DashboardIcon /> },
-  { text: 'เพิ่มรายการ', path: '/add-transaction', icon: <AddCircleOutlineIcon /> },
-  { text: 'รายการ', path: '/transactions', icon: <ListAltIcon /> },
-  { text: 'รายงาน', path: '/reports', icon: <AssessmentIcon /> },
-  { text: 'จัดการงบประมาณ', path: '/budget-management', icon: <AccountBalanceWalletIcon /> },
-  { text: 'AI วางแผนเงิน', path: '/planner', icon: <AutoFixHighIcon /> },
-  { text: 'หมวดหมู่', path: '/categories', icon: <CategoryIcon /> },
-  { text: 'การตั้งค่า', path: '/settings', icon: <SettingsIcon /> },
-  { text: 'โปรไฟล์', path: '/profile', icon: <PersonIcon /> },
-  { text: 'ประวัติ', path: '/history', icon: <HistoryIcon /> },
+  { text: 'dashboard', path: '/dashboard', icon: <DashboardIcon /> },
+  { text: 'addTransaction', path: '/add-transaction', icon: <AddCircleOutlineIcon /> },
+  { text: 'transactions', path: '/transactions', icon: <ListAltIcon /> },
+  { text: 'reports', path: '/reports', icon: <AssessmentIcon /> },
+  { text: 'budgetManagement', path: '/budget-management', icon: <AccountBalanceWalletIcon /> },
+  { text: 'planner', path: '/planner', icon: <AutoFixHighIcon /> },
+  { text: 'categories', path: '/categories', icon: <CategoryIcon /> },
+  { text: 'settings', path: '/settings', icon: <SettingsIcon /> },
+  { text: 'profile', path: '/profile', icon: <PersonIcon /> },
+  { text: 'history', path: '/history', icon: <HistoryIcon /> },
+  { text: 'support', path: '/support', icon: <FavoriteIcon /> },
 ];
 
 export default menuItems;

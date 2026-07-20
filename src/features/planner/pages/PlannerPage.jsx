@@ -18,12 +18,13 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import SavingsIcon from '@mui/icons-material/Savings';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import { useTranslation } from 'react-i18next';
 import { getSpendingPlan } from '@/lib/openai';
-import { useSnackbar } from '@/shared/hooks/useSnackbar';
-import SnackbarAlert from '@/shared/components/SnackbarAlert';
+import { showToast } from '@/lib/swal';
 import PageContainer from '@/shared/components/PageContainer';
 
 function PlannerPage() {
+  const { t } = useTranslation();
   const [budget, setBudget] = useState('');
   const [days, setDays] = useState('');
   const [fixedExpenses, setFixedExpenses] = useState('');
@@ -31,7 +32,6 @@ function PlannerPage() {
   const [lifestyle, setLifestyle] = useState('');
   const [result, setResult] = useState('');
   const [loading, setLoading] = useState(false);
-  const { snackbar, showSnackbar, closeSnackbar } = useSnackbar();
 
   const dailyBudget = budget && days && parseFloat(days) > 0
     ? (parseFloat(budget) / parseFloat(days)).toFixed(0)
@@ -39,11 +39,11 @@ function PlannerPage() {
 
   const handleSubmit = async () => {
     if (!budget || parseFloat(budget) <= 0) {
-      showSnackbar('กรุณากรอกจำนวนเงิน', 'error');
+      showToast(t('planner.enterBudget'), 'error');
       return;
     }
     if (!days || parseFloat(days) <= 0) {
-      showSnackbar('กรุณากรอกจำนวนวัน', 'error');
+      showToast(t('planner.enterDays'), 'error');
       return;
     }
     setLoading(true);
@@ -58,7 +58,7 @@ function PlannerPage() {
       });
       setResult(plan);
     } catch (err) {
-      showSnackbar(err.message || 'ไม่สามารถสร้างแผนได้ กรุณาลองใหม่', 'error');
+      showToast(err.message || t('planner.planError'), 'error');
     } finally {
       setLoading(false);
     }
@@ -74,7 +74,7 @@ function PlannerPage() {
   };
 
   return (
-    <PageContainer title="AI วางแผนการใช้เงิน" maxWidth="md">
+    <PageContainer title={t('planner.title')} maxWidth="md">
       {/* Input Form */}
       <Paper sx={{ p: { xs: 3, sm: 4 }, mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
@@ -87,10 +87,10 @@ function PlannerPage() {
           </Box>
           <Box>
             <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>
-              วางแผนการใช้เงิน
+              {t('planner.subtitle')}
             </Typography>
             <Typography sx={{ fontSize: '0.8125rem', color: 'text.secondary' }}>
-              กรอกข้อมูลเพื่อให้ AI ช่วยวางแผนบริหารเงินของคุณ
+              {t('planner.description')}
             </Typography>
           </Box>
         </Box>
@@ -98,7 +98,7 @@ function PlannerPage() {
         <Grid container spacing={2.5}>
           <Grid item xs={12} sm={6}>
             <TextField
-              label="งบประมาณที่มี"
+              label={t('planner.budgetLabel')}
               type="number"
               fullWidth
               required
@@ -110,15 +110,15 @@ function PlannerPage() {
                     <AccountBalanceWalletIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
                   </InputAdornment>
                 ),
-                endAdornment: <InputAdornment position="end">บาท</InputAdornment>,
+                endAdornment: <InputAdornment position="end">{t('common.baht')}</InputAdornment>,
               }}
               inputProps={{ min: 0, step: '100' }}
-              placeholder="เช่น 15000"
+              placeholder={t('planner.budgetPlaceholder')}
             />
           </Grid>
           <Grid item xs={12} sm={6}>
             <TextField
-              label="จำนวนวันที่ต้องบริหาร"
+              label={t('planner.daysLabel')}
               type="number"
               fullWidth
               required
@@ -130,10 +130,10 @@ function PlannerPage() {
                     <CalendarMonthIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
                   </InputAdornment>
                 ),
-                endAdornment: <InputAdornment position="end">วัน</InputAdornment>,
+                endAdornment: <InputAdornment position="end">{t('common.days')}</InputAdornment>,
               }}
               inputProps={{ min: 1, step: '1' }}
-              placeholder="เช่น 15"
+              placeholder={t('planner.daysPlaceholder')}
             />
           </Grid>
 
@@ -149,7 +149,7 @@ function PlannerPage() {
               }}>
                 <SavingsIcon sx={{ color: '#22c55e', fontSize: 22 }} />
                 <Typography sx={{ fontSize: '0.875rem', color: 'text.primary' }}>
-                  งบเฉลี่ยต่อวัน: <strong>{parseFloat(dailyBudget).toLocaleString('th-TH')} บาท</strong>
+                  {t('planner.dailyAvg', { amount: parseFloat(dailyBudget).toLocaleString() })}
                 </Typography>
               </Box>
             </Grid>
@@ -157,37 +157,37 @@ function PlannerPage() {
 
           <Grid item xs={12}>
             <TextField
-              label="ค่าใช้จ่ายคงที่ที่ต้องจ่าย (ถ้ามี)"
+              label={t('planner.fixedExpenses')}
               multiline
               rows={2}
               fullWidth
               value={fixedExpenses}
               onChange={(e) => setFixedExpenses(e.target.value)}
-              placeholder="เช่น ค่าเช่า 5000, ค่าเน็ต 600, ค่าโทรศัพท์ 300"
+              placeholder={t('planner.fixedPlaceholder')}
               inputProps={{ maxLength: 500 }}
             />
           </Grid>
           <Grid item xs={12}>
             <TextField
-              label="เป้าหมายหรือสิ่งที่อยากทำในช่วงนี้ (ถ้ามี)"
+              label={t('planner.goals')}
               multiline
               rows={2}
               fullWidth
               value={goals}
               onChange={(e) => setGoals(e.target.value)}
-              placeholder="เช่น อยากเก็บเงิน 2000, ต้องซื้อของขวัญ, อยากกินข้าวนอกบ้าน 2 ครั้ง"
+              placeholder={t('planner.goalsPlaceholder')}
               inputProps={{ maxLength: 500 }}
             />
           </Grid>
           <Grid item xs={12}>
             <TextField
-              label="ไลฟ์สไตล์/บริบทเพิ่มเติม (ถ้ามี)"
+              label={t('planner.lifestyle')}
               multiline
               rows={2}
               fullWidth
               value={lifestyle}
               onChange={(e) => setLifestyle(e.target.value)}
-              placeholder="เช่น ทำงานออฟฟิศ กินข้าวนอกบ้านบ่อย, อยู่คอนโด ทำอาหารเองได้"
+              placeholder={t('planner.lifestylePlaceholder')}
               inputProps={{ maxLength: 500 }}
             />
           </Grid>
@@ -206,7 +206,7 @@ function PlannerPage() {
                   '&.Mui-disabled': { background: 'action.disabledBackground' },
                 }}
               >
-                {loading ? 'AI กำลังวางแผน...' : 'วางแผนการใช้เงิน'}
+                {loading ? t('planner.generating') : t('planner.generatePlan')}
               </Button>
               {(budget || days || fixedExpenses || goals || lifestyle || result) && (
                 <Button
@@ -216,7 +216,7 @@ function PlannerPage() {
                   startIcon={<RestartAltIcon />}
                   sx={{ color: 'text.secondary', borderColor: 'divider' }}
                 >
-                  ล้างข้อมูล
+                  {t('planner.clearData')}
                 </Button>
               )}
             </Box>
@@ -229,7 +229,7 @@ function PlannerPage() {
         <Paper sx={{ p: 4, mb: 3, textAlign: 'center' }}>
           <CircularProgress size={40} sx={{ color: '#8b5cf6', mb: 2 }} />
           <Typography sx={{ fontSize: '0.9375rem', color: 'text.secondary' }}>
-            AI กำลังวิเคราะห์และวางแผนการใช้เงินให้คุณ...
+            {t('planner.aiPlanning')}
           </Typography>
         </Paper>
       </Collapse>
@@ -247,7 +247,7 @@ function PlannerPage() {
                 <AutoFixHighIcon sx={{ color: '#8b5cf6', fontSize: 18 }} />
               </Box>
               <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>
-                แผนการใช้เงินของคุณ
+                {t('planner.resultTitle')}
               </Typography>
             </Box>
             <Divider sx={{ mb: 2.5 }} />
@@ -274,7 +274,6 @@ function PlannerPage() {
         )}
       </Collapse>
 
-      <SnackbarAlert open={snackbar.open} message={snackbar.message} severity={snackbar.severity} onClose={closeSnackbar} />
     </PageContainer>
   );
 }

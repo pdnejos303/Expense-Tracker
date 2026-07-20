@@ -29,17 +29,20 @@ import {
 import { Edit, Delete } from '@mui/icons-material';
 import AddIcon from '@mui/icons-material/Add';
 import { firestore, auth } from '@/lib/firebase';
+import { userQuery, mapDocs } from '@/lib/db';
 import { formatCurrency } from '@/lib/format';
 import { getFirebaseErrorMessage } from '@/lib/firebaseErrors';
-import { useSnackbar } from '@/shared/hooks/useSnackbar';
-import SnackbarAlert from '@/shared/components/SnackbarAlert';
-import ConfirmDialog from '@/shared/components/ConfirmDialog';
+import { showToast, showConfirm } from '@/lib/swal';
 import PageContainer from '@/shared/components/PageContainer';
 import LoadingScreen from '@/shared/components/LoadingScreen';
 import EmptyState from '@/shared/components/EmptyState';
 import iconMap, { iconOptions } from '@/shared/constants/iconMap';
+import { useTranslation } from 'react-i18next';
+import { motion } from 'framer-motion';
+import { staggerContainer, staggerItem } from '@/shared/utils/animations';
 
 function MobileCategoryCard({ category, transactionCount, totalAmount, onEdit, onDelete }) {
+  const { t } = useTranslation();
   const isIncome = category.type === 'income';
   const IconComponent = iconMap[category.icon];
 
@@ -70,7 +73,7 @@ function MobileCategoryCard({ category, transactionCount, totalAmount, onEdit, o
               {category.name}
             </Typography>
             <Chip
-              label={isIncome ? 'รายรับ' : 'รายจ่าย'}
+              label={isIncome ? t('common.income') : t('common.expense')}
               size="small"
               sx={{
                 height: 22,
@@ -83,7 +86,7 @@ function MobileCategoryCard({ category, transactionCount, totalAmount, onEdit, o
           </Box>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
-              {transactionCount} ครั้ง | {formatCurrency(totalAmount)}
+              {`${transactionCount} ${t('category.usageCount')} | ${formatCurrency(totalAmount)}`}
             </Typography>
             <Box sx={{ display: 'flex', gap: 0 }}>
               <IconButton size="small" onClick={() => onEdit(category)} sx={{ color: 'primary.main' }}>
@@ -101,15 +104,13 @@ function MobileCategoryCard({ category, transactionCount, totalAmount, onEdit, o
 }
 
 function CategoriesPage() {
+  const { t } = useTranslation();
   const [categories, setCategories] = useState([]);
   const [filterType, setFilterType] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
   const [categoryForm, setCategoryForm] = useState({ id: '', name: '', type: 'expense', color: '#3b82f6', icon: 'Category' });
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { snackbar, showSnackbar, closeSnackbar } = useSnackbar();
-  const [deleteDialog, setDeleteDialog] = useState(false);
-  const [deleteId, setDeleteId] = useState(null);
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -119,34 +120,40 @@ function CategoriesPage() {
   const fetchData = async () => {
     setLoading(true);
     try { await Promise.all([fetchCategories(), fetchTransactions()]); }
-    catch (err) { showSnackbar(getFirebaseErrorMessage(err), 'error'); }
+    catch (err) { showToast(getFirebaseErrorMessage(err), 'error'); }
     finally { setLoading(false); }
   };
 
   const fetchCategories = async () => {
     const user = auth.currentUser; if (!user) return;
-    let ref = firestore.collection('categories').where('userId', '==', user.uid);
+    let ref = userQuery('categories', user.uid);
     if (filterType) ref = ref.where('type', '==', filterType);
     const snapshot = await ref.get();
-    setCategories(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    setCategories(mapDocs(snapshot));
   };
 
   const fetchTransactions = async () => {
     const user = auth.currentUser; if (!user) return;
-    const snapshot = await firestore.collection('transactions').where('userId', '==', user.uid).get();
-    setTransactions(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    const snapshot = await userQuery('transactions', user.uid).get();
+    setTransactions(mapDocs(snapshot));
   };
 
-  const handleDelete = async () => {
-    if (!deleteId) return;
-    await firestore.collection('categories').doc(deleteId).delete();
-    fetchCategories(); setDeleteDialog(false); setDeleteId(null);
-    showSnackbar('ลบหมวดหมู่เรียบร้อยแล้ว!');
+  const handleDelete = async (id) => {
+    const result = await showConfirm({
+      title: t('confirm.title'),
+      text: t('category.deleteConfirm'),
+      confirmButtonText: t('common.delete'),
+      cancelButtonText: t('common.cancel'),
+    });
+    if (!result.isConfirmed) return;
+    await firestore.collection('categories').doc(id).delete();
+    fetchCategories();
+    showToast(t('category.deleteSuccess'));
   };
 
   const handleSave = async () => {
     const user = auth.currentUser; if (!user) return;
-    if (!categoryForm.name) { showSnackbar('กรุณากรอกชื่อหมวดหมู่', 'error'); return; }
+    if (!categoryForm.name) { showToast(t('category.enterName'), 'error'); return; }
     try {
       if (categoryForm.id) {
         await firestore.collection('categories').doc(categoryForm.id).update({ name: categoryForm.name, type: categoryForm.type, color: categoryForm.color, icon: categoryForm.icon });
@@ -154,8 +161,8 @@ function CategoriesPage() {
         await firestore.collection('categories').add({ userId: user.uid, name: categoryForm.name, type: categoryForm.type, color: categoryForm.color, icon: categoryForm.icon });
       }
       setOpenDialog(false); fetchCategories();
-      showSnackbar('บันทึกหมวดหมู่เรียบร้อยแล้ว!');
-    } catch (err) { showSnackbar(getFirebaseErrorMessage(err), 'error'); }
+      showToast(t('category.saveSuccess'));
+    } catch (err) { showToast(getFirebaseErrorMessage(err), 'error'); }
   };
 
   const handleEditOpen = (category) => {
@@ -166,40 +173,41 @@ function CategoriesPage() {
   if (loading) return <LoadingScreen />;
 
   return (
-    <PageContainer title="จัดการหมวดหมู่" maxWidth="lg">
+    <PageContainer title={t('category.title')} maxWidth="lg">
       <Paper sx={{ p: { xs: 1.5, sm: 3 }, mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.5, sm: 2 }, flexWrap: 'wrap' }}>
           <FormControl sx={{ minWidth: 0, flex: { xs: '1 1 auto', sm: '0 0 180px' } }} size="small">
-            <InputLabel>ประเภท</InputLabel>
-            <Select value={filterType} onChange={(e) => setFilterType(e.target.value)} label="ประเภท">
-              <MenuItem value=""><em>ทั้งหมด</em></MenuItem>
-              <MenuItem value="income">รายรับ</MenuItem>
-              <MenuItem value="expense">รายจ่าย</MenuItem>
+            <InputLabel>{t('common.type')}</InputLabel>
+            <Select value={filterType} onChange={(e) => setFilterType(e.target.value)} label={t('common.type')}>
+              <MenuItem value=""><em>{t('common.all')}</em></MenuItem>
+              <MenuItem value="income">{t('common.income')}</MenuItem>
+              <MenuItem value="expense">{t('common.expense')}</MenuItem>
             </Select>
           </FormControl>
           <Box sx={{ flex: 1 }} />
           <Button variant="contained" startIcon={<AddIcon />} size="small" onClick={() => { setCategoryForm({ id: '', name: '', type: 'expense', color: '#3b82f6', icon: 'Category' }); setOpenDialog(true); }}>
-            เพิ่มหมวดหมู่
+            {t('category.addCategory')}
           </Button>
         </Box>
       </Paper>
 
       {categories.length === 0 ? (
-        <Paper sx={{ p: 6 }}><EmptyState message="ยังไม่มีหมวดหมู่" /></Paper>
+        <Paper sx={{ p: 6 }}><EmptyState message={t('category.noCategories')} /></Paper>
       ) : isMobile ? (
         /* Mobile: Card layout */
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }} component={motion.div} variants={staggerContainer} initial="initial" animate="animate">
           {categories.map((category) => {
             const categoryTransactions = transactions.filter((t) => t.category === category.name && t.type === category.type);
             return (
-              <MobileCategoryCard
-                key={category.id}
-                category={category}
-                transactionCount={categoryTransactions.length}
-                totalAmount={categoryTransactions.reduce((sum, t) => sum + t.amount, 0)}
-                onEdit={handleEditOpen}
-                onDelete={(id) => { setDeleteId(id); setDeleteDialog(true); }}
-              />
+              <motion.div key={category.id} variants={staggerItem}>
+                <MobileCategoryCard
+                  category={category}
+                  transactionCount={categoryTransactions.length}
+                  totalAmount={categoryTransactions.reduce((sum, t) => sum + t.amount, 0)}
+                  onEdit={handleEditOpen}
+                  onDelete={(id) => handleDelete(id)}
+                />
+              </motion.div>
             );
           })}
         </Box>
@@ -210,13 +218,13 @@ function CategoriesPage() {
             <Table sx={{ minWidth: 600 }}>
               <TableHead>
                 <TableRow>
-                  <TableCell>ชื่อหมวดหมู่</TableCell>
-                  <TableCell>ประเภท</TableCell>
-                  <TableCell>ไอคอน</TableCell>
-                  <TableCell>สี</TableCell>
-                  <TableCell align="right">จำนวนครั้ง</TableCell>
-                  <TableCell align="right">ยอดเงินรวม</TableCell>
-                  <TableCell align="center">การกระทำ</TableCell>
+                  <TableCell>{t('category.categoryName')}</TableCell>
+                  <TableCell>{t('common.type')}</TableCell>
+                  <TableCell>{t('common.icon')}</TableCell>
+                  <TableCell>{t('common.color')}</TableCell>
+                  <TableCell align="right">{t('category.usageCount')}</TableCell>
+                  <TableCell align="right">{t('category.totalAmount')}</TableCell>
+                  <TableCell align="center">{t('common.action')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -228,7 +236,7 @@ function CategoriesPage() {
                       <TableCell sx={{ fontWeight: 500 }}>{category.name}</TableCell>
                       <TableCell>
                         <Chip
-                          label={category.type === 'income' ? 'รายรับ' : 'รายจ่าย'}
+                          label={category.type === 'income' ? t('common.income') : t('common.expense')}
                           size="small"
                           sx={{
                             bgcolor: category.type === 'income' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
@@ -239,13 +247,13 @@ function CategoriesPage() {
                       </TableCell>
                       <TableCell>{IconComponent && <IconComponent sx={{ color: category.color || '#9e9e9e', fontSize: 20 }} />}</TableCell>
                       <TableCell>
-                        <Box sx={{ width: 24, height: 24, backgroundColor: category.color || '#9e9e9e', borderRadius: '6px', border: '2px solid', borderColor: alpha(category.color || '#9e9e9e', 0.3) }} role="img" aria-label={`สี ${category.color || '#9e9e9e'}`} />
+                        <Box sx={{ width: 24, height: 24, backgroundColor: category.color || '#9e9e9e', borderRadius: '6px', border: '2px solid', borderColor: alpha(category.color || '#9e9e9e', 0.3) }} role="img" aria-label={`${t('common.color')} ${category.color || '#9e9e9e'}`} />
                       </TableCell>
                       <TableCell align="right" sx={{ fontVariantNumeric: 'tabular-nums' }}>{categoryTransactions.length}</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(categoryTransactions.reduce((sum, t) => sum + t.amount, 0))}</TableCell>
                       <TableCell align="center">
-                        <IconButton size="small" onClick={() => handleEditOpen(category)} sx={{ color: '#3b82f6' }} aria-label={`แก้ไข ${category.name}`}><Edit fontSize="small" /></IconButton>
-                        <IconButton size="small" onClick={() => { setDeleteId(category.id); setDeleteDialog(true); }} sx={{ color: '#ef4444' }} aria-label={`ลบ ${category.name}`}><Delete fontSize="small" /></IconButton>
+                        <IconButton size="small" onClick={() => handleEditOpen(category)} sx={{ color: '#3b82f6' }} aria-label={`${t('common.edit')} ${category.name}`}><Edit fontSize="small" /></IconButton>
+                        <IconButton size="small" onClick={() => handleDelete(category.id)} sx={{ color: '#ef4444' }} aria-label={`${t('common.delete')} ${category.name}`}><Delete fontSize="small" /></IconButton>
                       </TableCell>
                     </TableRow>
                   );
@@ -257,23 +265,23 @@ function CategoriesPage() {
       )}
 
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{categoryForm.id ? 'แก้ไขหมวดหมู่' : 'เพิ่มหมวดหมู่'}</DialogTitle>
+        <DialogTitle>{categoryForm.id ? t('category.editCategory') : t('category.addCategory')}</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 0.5 }}>
             <Grid item xs={12} sm={6}>
-              <TextField label="ชื่อหมวดหมู่" fullWidth value={categoryForm.name} onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })} />
+              <TextField label={t('category.categoryName')} fullWidth value={categoryForm.name} onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })} />
             </Grid>
             <Grid item xs={12} sm={6}>
               <FormControl fullWidth>
-                <InputLabel>ประเภท</InputLabel>
-                <Select value={categoryForm.type} onChange={(e) => setCategoryForm({ ...categoryForm, type: e.target.value })} label="ประเภท">
-                  <MenuItem value="income">รายรับ</MenuItem>
-                  <MenuItem value="expense">รายจ่าย</MenuItem>
+                <InputLabel>{t('common.type')}</InputLabel>
+                <Select value={categoryForm.type} onChange={(e) => setCategoryForm({ ...categoryForm, type: e.target.value })} label={t('common.type')}>
+                  <MenuItem value="income">{t('common.income')}</MenuItem>
+                  <MenuItem value="expense">{t('common.expense')}</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
             <Grid item xs={12}>
-              <Typography variant="body2" sx={{ mb: 1, fontWeight: 500, color: 'text.primary' }}>เลือกสี</Typography>
+              <Typography variant="body2" sx={{ mb: 1, fontWeight: 500, color: 'text.primary' }}>{t('category.selectColor')}</Typography>
               <Box
                 component="label"
                 sx={{
@@ -284,11 +292,11 @@ function CategoriesPage() {
                   '&:focus-within': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 2 },
                 }}
               >
-                <input type="color" value={categoryForm.color} onChange={(e) => setCategoryForm({ ...categoryForm, color: e.target.value })} aria-label="เลือกสีหมวดหมู่" style={{ opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+                <input type="color" value={categoryForm.color} onChange={(e) => setCategoryForm({ ...categoryForm, color: e.target.value })} aria-label={t('category.selectColorTitle')} style={{ opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
               </Box>
             </Grid>
             <Grid item xs={12}>
-              <Typography variant="body2" sx={{ mb: 1, fontWeight: 500, color: 'text.primary' }}>เลือกไอคอน</Typography>
+              <Typography variant="body2" sx={{ mb: 1, fontWeight: 500, color: 'text.primary' }}>{t('category.selectIcon')}</Typography>
               <Box sx={{ maxHeight: { xs: 160, sm: 220 }, overflowY: 'auto', border: '1px solid', borderColor: 'divider', borderRadius: 2.5, p: 1.5 }}>
                 <Grid container spacing={0.5}>
                   {iconOptions.map((iconName) => {
@@ -319,13 +327,11 @@ function CategoriesPage() {
           </Grid>
         </DialogContent>
         <DialogActions sx={{ p: { xs: 2, sm: 3 }, pt: 1 }}>
-          <Button onClick={() => setOpenDialog(false)}>ยกเลิก</Button>
-          <Button onClick={handleSave} variant="contained">บันทึก</Button>
+          <Button onClick={() => setOpenDialog(false)}>{t('common.cancel')}</Button>
+          <Button onClick={handleSave} variant="contained">{t('common.save')}</Button>
         </DialogActions>
       </Dialog>
 
-      <ConfirmDialog open={deleteDialog} onClose={() => setDeleteDialog(false)} onConfirm={handleDelete} message="คุณต้องการลบหมวดหมู่นี้หรือไม่?" />
-      <SnackbarAlert open={snackbar.open} message={snackbar.message} severity={snackbar.severity} onClose={closeSnackbar} />
     </PageContainer>
   );
 }

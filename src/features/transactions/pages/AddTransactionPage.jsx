@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   TextField,
   Button,
@@ -24,15 +25,18 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import { firestore, storage, auth } from '@/lib/firebase';
+import { userQuery } from '@/lib/db';
 import { sanitizeText, validateImageFile, sanitizeFileName } from '@/lib/validation';
 import { getFirebaseErrorMessage } from '@/lib/firebaseErrors';
 import { suggestCategory } from '@/lib/openai';
-import { useSnackbar } from '@/shared/hooks/useSnackbar';
-import SnackbarAlert from '@/shared/components/SnackbarAlert';
+import { showToast } from '@/lib/swal';
 import PageContainer from '@/shared/components/PageContainer';
 import QuickAddCategoryDialog from '@/shared/components/QuickAddCategoryDialog';
+import { motion } from 'framer-motion';
+import { fadeInUp } from '@/shared/utils/animations';
 
 function AddTransactionPage() {
+  const { t } = useTranslation();
   const [type, setType] = useState('expense');
   const [category, setCategory] = useState('');
   const [amount, setAmount] = useState('');
@@ -40,7 +44,6 @@ function AddTransactionPage() {
   const [note, setNote] = useState('');
   const [receipt, setReceipt] = useState(null);
   const [categories, setCategories] = useState([]);
-  const { snackbar, showSnackbar, closeSnackbar } = useSnackbar();
   const [submitting, setSubmitting] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
 
@@ -51,11 +54,7 @@ function AddTransactionPage() {
   const fetchCategories = async (selectName) => {
     const user = auth.currentUser;
     if (!user) return;
-    const snapshot = await firestore
-      .collection('categories')
-      .where('userId', '==', user.uid)
-      .where('type', '==', type)
-      .get();
+    const snapshot = await userQuery('categories', user.uid).where('type', '==', type).get();
     setCategories(snapshot.docs.map((doc) => doc.data()));
     if (selectName) setCategory(selectName);
     else setCategory('');
@@ -92,16 +91,16 @@ function AddTransactionPage() {
     const user = auth.currentUser;
     if (!user) return;
 
-    if (!date) { showSnackbar('กรุณากรอกวันที่', 'error'); return; }
-    if (!category) { showSnackbar('กรุณาเลือกหมวดหมู่', 'error'); return; }
-    if (!amount || parseFloat(amount) <= 0) { showSnackbar('กรุณากรอกจำนวนเงินที่ถูกต้อง', 'error'); return; }
+    if (!date) { showToast(t('transaction.enterDate'), 'error'); return; }
+    if (!category) { showToast(t('transaction.selectCategory'), 'error'); return; }
+    if (!amount || parseFloat(amount) <= 0) { showToast(t('transaction.validAmount'), 'error'); return; }
 
     setSubmitting(true);
     try {
       let receiptUrl = '';
       if (receipt) {
         const fileCheck = validateImageFile(receipt, 2);
-        if (!fileCheck.valid) { showSnackbar(fileCheck.error, 'error'); setSubmitting(false); return; }
+        if (!fileCheck.valid) { showToast(fileCheck.error, 'error'); setSubmitting(false); return; }
         const storageRef = storage.ref();
         const safeName = sanitizeFileName(receipt.name);
         const receiptRef = storageRef.child(`receipts/${user.uid}/${Date.now()}_${safeName}`);
@@ -123,16 +122,16 @@ function AddTransactionPage() {
       setType('expense'); setCategory(''); setAmount('');
       setDate(new Date().toISOString().split('T')[0]);
       setNote(''); setReceipt(null); setAiSuggestion(null);
-      showSnackbar('เพิ่มรายการเรียบร้อยแล้ว!');
+      showToast(t('transaction.addSuccess'));
     } catch (err) {
-      showSnackbar(getFirebaseErrorMessage(err), 'error');
+      showToast(getFirebaseErrorMessage(err), 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <PageContainer title="เพิ่มรายการรายรับ-รายจ่าย" maxWidth="md">
+    <PageContainer title={t('transaction.addTitle')} maxWidth="md">
       <Paper sx={{ p: { xs: 3, sm: 4 } }}>
         <form onSubmit={handleSubmit}>
           <Grid container spacing={2.5}>
@@ -168,7 +167,7 @@ function AddTransactionPage() {
                   }}
                 >
                   <TrendingDownIcon fontSize="small" />
-                  รายจ่าย
+                  {t('common.expense')}
                 </ToggleButton>
                 <ToggleButton
                   value="income"
@@ -181,17 +180,17 @@ function AddTransactionPage() {
                   }}
                 >
                   <TrendingUpIcon fontSize="small" />
-                  รายรับ
+                  {t('common.income')}
                 </ToggleButton>
               </ToggleButtonGroup>
             </Grid>
             <Grid item xs={12} sm={6}>
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <FormControl fullWidth>
-                  <InputLabel>หมวดหมู่</InputLabel>
-                  <Select value={category} onChange={(e) => setCategory(e.target.value)} label="หมวดหมู่">
+                  <InputLabel>{t('common.category')}</InputLabel>
+                  <Select value={category} onChange={(e) => setCategory(e.target.value)} label={t('common.category')}>
                     {categories.length === 0 && (
-                      <MenuItem disabled>ไม่มีหมวดหมู่</MenuItem>
+                      <MenuItem disabled>{t('transaction.noCategory')}</MenuItem>
                     )}
                     {categories.map((cat, index) => (
                       <MenuItem key={index} value={cat.name}>{cat.name}</MenuItem>
@@ -201,26 +200,26 @@ function AddTransactionPage() {
                 <IconButton
                   onClick={() => setQuickAddOpen(true)}
                   sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, alignSelf: 'stretch', width: 56 }}
-                  aria-label="เพิ่มหมวดหมู่ใหม่"
+                  aria-label={t('category.addNew')}
                 >
                   <AddIcon />
                 </IconButton>
               </Box>
               {/* AI Category Suggestion */}
               {(aiSuggestion || aiLoading) && (
-                <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                <Box component={motion.div} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 0.75 }}>
                   {aiLoading ? (
                     <>
                       <CircularProgress size={14} />
                       <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
-                        AI กำลังวิเคราะห์...
+                        {t('transaction.aiAnalyzing')}
                       </Typography>
                     </>
                   ) : aiSuggestion ? (
                     <>
                       <AutoFixHighIcon sx={{ fontSize: 16, color: '#8b5cf6' }} />
                       <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
-                        AI แนะนำ:
+                        {t('transaction.aiSuggest')}
                       </Typography>
                       <Chip
                         label={aiSuggestion}
@@ -243,7 +242,7 @@ function AddTransactionPage() {
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
-                label="จำนวนเงิน"
+                label={t('common.amount')}
                 type="number"
                 fullWidth
                 required
@@ -254,7 +253,7 @@ function AddTransactionPage() {
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
-                label="วันที่"
+                label={t('common.date')}
                 type="date"
                 fullWidth
                 InputLabelProps={{ shrink: true }}
@@ -272,14 +271,14 @@ function AddTransactionPage() {
             </Grid>
             <Grid item xs={12}>
               <TextField
-                label="หมายเหตุ"
+                label={t('common.note')}
                 multiline
                 rows={3}
                 fullWidth
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 inputProps={{ maxLength: 500 }}
-                helperText={note.length >= 3 ? 'AI จะแนะนำหมวดหมู่อัตโนมัติจากหมายเหตุ' : ''}
+                helperText={note.length >= 3 ? t('transaction.aiNoteHint') : ''}
               />
             </Grid>
             <Grid item xs={12}>
@@ -296,8 +295,8 @@ function AddTransactionPage() {
                   '&:hover': { borderColor: 'primary.main', bgcolor: (theme) => alpha(theme.palette.primary.main, 0.04) },
                 }}
               >
-                อัปโหลดใบเสร็จ
-                <input type="file" hidden accept="image/*" onChange={(e) => setReceipt(e.target.files[0])} aria-label="เลือกไฟล์ใบเสร็จ" />
+                {t('transaction.uploadReceipt')}
+                <input type="file" hidden accept="image/*" onChange={(e) => setReceipt(e.target.files[0])} aria-label={t('transaction.selectReceipt')} />
               </Button>
               {receipt && (
                 <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary', fontSize: '0.8125rem' }}>
@@ -314,7 +313,7 @@ function AddTransactionPage() {
                 startIcon={<SaveIcon />}
                 sx={{ px: 4 }}
               >
-                {submitting ? 'กำลังบันทึก...' : 'บันทึก'}
+                {submitting ? t('common.saving') : t('common.save')}
               </Button>
             </Grid>
           </Grid>
@@ -329,7 +328,6 @@ function AddTransactionPage() {
           else fetchCategories();
         }}
       />
-      <SnackbarAlert open={snackbar.open} message={snackbar.message} severity={snackbar.severity} onClose={closeSnackbar} />
     </PageContainer>
   );
 }

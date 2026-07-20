@@ -1,12 +1,25 @@
 import React from 'react';
-import { Container, Box, Typography } from '@mui/material';
+import { Container, Box, Typography, useTheme, useMediaQuery } from '@mui/material';
+import { motion } from 'framer-motion';
+import { pageVariants, staggerContainer, staggerItem } from '@/shared/utils/animations';
+
+const MotionBox = motion.create(Box);
 
 function PageContainer({ title, maxWidth = 'lg', titleAlign, children, action }) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
   return (
     <Container maxWidth={maxWidth} sx={{ px: { xs: 2, sm: 3, md: 4 } }}>
-      <Box sx={{ pt: { xs: 2.5, sm: 3, md: 4 } }}>
+      <MotionBox
+        variants={pageVariants}
+        initial="initial"
+        animate="animate"
+        sx={{ pt: { xs: 2.5, sm: 3, md: 4 }, pb: isMobile ? '80px' : 4 }}
+      >
         {(title || action) && (
-          <Box
+          <MotionBox
+            variants={staggerItem}
             sx={{
               display: 'flex',
               alignItems: titleAlign === 'center' ? 'center' : 'flex-start',
@@ -28,10 +41,10 @@ function PageContainer({ title, maxWidth = 'lg', titleAlign, children, action })
               </Typography>
             )}
             {action && <Box>{action}</Box>}
-          </Box>
+          </MotionBox>
         )}
         {children}
-      </Box>
+      </MotionBox>
     </Container>
   );
 }

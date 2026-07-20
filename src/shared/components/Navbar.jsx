@@ -19,20 +19,23 @@ import {
   Tooltip,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
-import LogoutIcon from '@mui/icons-material/Logout';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { auth } from '@/lib/firebase';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useThemeSettings } from '@/app/ThemeContext';
+import LanguageMenu from '@/shared/components/LanguageMenu';
 import menuItems from '@/shared/config/menuItems';
 import { SIDEBAR_WIDTH } from '@/app/theme';
+import { motion, AnimatePresence } from 'framer-motion';
+import { easeOutQuart } from '@/shared/utils/animations';
 
 function Navbar() {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const { currentUser } = useAuth();
+  const { t } = useTranslation();
   const theme = useTheme();
   const { mode, toggleMode } = useThemeSettings();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -43,12 +46,6 @@ function Navbar() {
   const SIDEBAR_BG = sb.bg || '#0f172a';
   const SIDEBAR_TEXT = sb.text || '#94a3b8';
   const SIDEBAR_ACTIVE_TEXT = sb.activeText || '#ffffff';
-
-  const handleLogout = async () => {
-    await auth.signOut();
-    setMobileDrawerOpen(false);
-    navigate('/login');
-  };
 
   const handleNavigate = (path) => {
     navigate(path);
@@ -81,7 +78,7 @@ function Navbar() {
           gap: 1.5,
           cursor: 'pointer',
         }}
-        onClick={() => handleNavigate('/')}
+        onClick={() => handleNavigate('/dashboard')}
       >
         <Box
           sx={{
@@ -110,7 +107,7 @@ function Navbar() {
             Expense Tracker
           </Typography>
           <Typography sx={{ fontSize: '0.7rem', color: SIDEBAR_TEXT, lineHeight: 1 }}>
-            จัดการการเงิน
+            {t('app.tagline')}
           </Typography>
         </Box>
       </Box>
@@ -156,116 +153,30 @@ function Navbar() {
                   fontWeight: isActive ? 600 : 400,
                 }}
               />
-              {isActive && (
-                <Box
-                  sx={{
-                    width: 4,
-                    height: 20,
-                    borderRadius: 2,
-                    bgcolor: theme.palette.primary.main,
-                    position: 'absolute',
-                    right: 8,
-                  }}
-                />
-              )}
+              <AnimatePresence>
+                {isActive && (
+                  <Box
+                    component={motion.div}
+                    initial={{ scaleY: 0, opacity: 0 }}
+                    animate={{ scaleY: 1, opacity: 1 }}
+                    exit={{ scaleY: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: easeOutQuart }}
+                    sx={{
+                      width: 4,
+                      height: 20,
+                      borderRadius: 2,
+                      bgcolor: theme.palette.primary.main,
+                      position: 'absolute',
+                      right: 8,
+                    }}
+                  />
+                )}
+              </AnimatePresence>
             </ListItemButton>
           );
         })}
       </List>
 
-      <Divider sx={{ borderColor: sb.divider || alpha('#fff', 0.08), mx: 2 }} />
-
-      {/* Dark mode toggle */}
-      <Box sx={{ px: 2, py: 1.5 }}>
-        <Box
-          onClick={toggleMode}
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1.5,
-            px: 2,
-            py: 1,
-            borderRadius: '10px',
-            cursor: 'pointer',
-            color: SIDEBAR_TEXT,
-            '&:hover': { bgcolor: sb.hoverBg || alpha('#fff', 0.05) },
-            transition: 'all 0.15s ease',
-          }}
-        >
-          {mode === 'dark' ? (
-            <LightModeIcon sx={{ fontSize: 20 }} />
-          ) : (
-            <DarkModeIcon sx={{ fontSize: 20 }} />
-          )}
-          <Typography sx={{ fontSize: '0.875rem' }}>
-            {mode === 'dark' ? 'โหมดสว่าง' : 'โหมดมืด'}
-          </Typography>
-        </Box>
-      </Box>
-
-      <Divider sx={{ borderColor: sb.divider || alpha('#fff', 0.08), mx: 2 }} />
-
-      {/* User section */}
-      <Box sx={{ p: 2 }}>
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1.5,
-            p: 1.5,
-            borderRadius: '12px',
-            bgcolor: sb.userBg || alpha('#fff', 0.05),
-            cursor: 'pointer',
-            '&:hover': { bgcolor: sb.hoverBg || alpha('#fff', 0.08) },
-          }}
-          onClick={() => handleNavigate('/profile')}
-        >
-          <Avatar
-            src={currentUser.photoURL}
-            alt={currentUser.displayName}
-            sx={{
-              width: 36,
-              height: 36,
-              border: `2px solid ${alpha(SIDEBAR_ACTIVE_TEXT, 0.2)}`,
-              fontSize: '0.875rem',
-            }}
-          >
-            {(currentUser.displayName || currentUser.email || '?')[0].toUpperCase()}
-          </Avatar>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography
-              sx={{
-                color: SIDEBAR_ACTIVE_TEXT,
-                fontSize: '0.8125rem',
-                fontWeight: 600,
-                lineHeight: 1.3,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {currentUser.displayName || currentUser.email}
-            </Typography>
-            <Typography sx={{ color: SIDEBAR_TEXT, fontSize: '0.7rem', lineHeight: 1.2 }}>
-              ดูโปรไฟล์
-            </Typography>
-          </Box>
-          <IconButton
-            size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleLogout();
-            }}
-            sx={{
-              color: SIDEBAR_TEXT,
-              '&:hover': { color: '#ef4444', bgcolor: alpha('#ef4444', 0.1) },
-            }}
-            aria-label="ออกจากระบบ"
-          >
-            <LogoutIcon sx={{ fontSize: 18 }} />
-          </IconButton>
-        </Box>
-      </Box>
     </Box>
   );
 
@@ -292,7 +203,7 @@ function Navbar() {
         >
           <IconButton
             onClick={() => setMobileDrawerOpen(true)}
-            aria-label="เปิดเมนู"
+            aria-label={t('nav.openMenu')}
             sx={{ mr: 1 }}
           >
             <MenuIcon />
@@ -315,11 +226,28 @@ function Navbar() {
               Expense Tracker
             </Typography>
           </Box>
-          <Tooltip title={isDark ? 'โหมดสว่าง' : 'โหมดมืด'}>
-            <IconButton onClick={toggleMode} size="small" sx={{ color: 'text.secondary' }}>
+          <LanguageMenu sx={{ mr: 0.5 }} />
+          <Tooltip title={isDark ? t('nav.lightMode') : t('nav.darkMode')}>
+            <IconButton onClick={toggleMode} size="small" sx={{ color: 'text.secondary', mr: 0.5 }}>
               {isDark ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
             </IconButton>
           </Tooltip>
+          <Avatar
+            src={currentUser.photoURL}
+            alt={currentUser.displayName}
+            onClick={() => navigate('/profile')}
+            sx={{
+              width: 32,
+              height: 32,
+              cursor: 'pointer',
+              fontSize: '0.8125rem',
+              bgcolor: 'primary.main',
+              border: '2px solid',
+              borderColor: 'divider',
+            }}
+          >
+            {(currentUser.displayName || currentUser.email || '?')[0].toUpperCase()}
+          </Avatar>
         </Box>
 
         {/* Spacer for fixed top bar */}

@@ -14,15 +14,16 @@ import {
   alpha,
 } from '@mui/material';
 import { auth, firestore, storage } from '@/lib/firebase';
+import { userQuery } from '@/lib/db';
 import { sanitizeText, validateImageFile, sanitizeFileName } from '@/lib/validation';
 import { formatDateTH } from '@/lib/timestamp';
 import { formatCurrency } from '@/lib/format';
 import { getFirebaseErrorMessage } from '@/lib/firebaseErrors';
-import { useSnackbar } from '@/shared/hooks/useSnackbar';
-import SnackbarAlert from '@/shared/components/SnackbarAlert';
+import { showToast, showConfirm } from '@/lib/swal';
 import PageContainer from '@/shared/components/PageContainer';
 import LoadingScreen from '@/shared/components/LoadingScreen';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import PhotoCamera from '@mui/icons-material/PhotoCamera';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
@@ -35,6 +36,8 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import SecurityIcon from '@mui/icons-material/Security';
+import { motion } from 'framer-motion';
+import { staggerContainer, staggerItem } from '@/shared/utils/animations';
 
 function InfoRow({ icon, iconColor, label, value }) {
   return (
@@ -99,10 +102,10 @@ function StatCard({ icon, iconColor, label, value }) {
 }
 
 function ProfilePage() {
+  const { t } = useTranslation();
   const [userData, setUserData] = useState({});
   const [editing, setEditing] = useState(false);
   const [displayName, setDisplayName] = useState('');
-  const { snackbar, showSnackbar, closeSnackbar } = useSnackbar();
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ count: 0, income: 0, expense: 0 });
@@ -117,7 +120,7 @@ function ProfilePage() {
       try {
         const [userDoc, transSnap] = await Promise.all([
           firestore.collection('users').doc(user.uid).get(),
-          firestore.collection('transactions').where('userId', '==', user.uid).get(),
+          userQuery('transactions', user.uid).get(),
         ]);
 
         if (userDoc.exists) setUserData(userDoc.data());
@@ -131,24 +134,34 @@ function ProfilePage() {
         });
         setStats({ count: transSnap.size, income, expense });
       } catch (err) {
-        showSnackbar(getFirebaseErrorMessage(err), 'error');
+        showToast(getFirebaseErrorMessage(err), 'error');
       }
       setLoading(false);
     };
     loadProfile();
   }, [navigate]);
 
-  const handleLogout = async () => { await auth.signOut(); navigate('/login'); };
+  const handleLogout = async () => {
+    const result = await showConfirm({
+      title: t('logoutConfirm.title'),
+      text: t('logoutConfirm.message'),
+      confirmButtonText: t('logoutConfirm.confirm'),
+      cancelButtonText: t('common.cancel'),
+    });
+    if (!result.isConfirmed) return;
+    await auth.signOut();
+    navigate('/login');
+  };
 
   const handleSave = async () => {
     const user = auth.currentUser; if (!user) return;
     const safeName = sanitizeText(displayName);
-    if (!safeName || safeName.length > 100) { showSnackbar('ชื่อต้องมี 1-100 ตัวอักษร', 'error'); return; }
+    if (!safeName || safeName.length > 100) { showToast(t('profile.nameValidation'), 'error'); return; }
     try {
       await user.updateProfile({ displayName: safeName });
       await firestore.collection('users').doc(user.uid).update({ name: safeName });
-      setEditing(false); showSnackbar('บันทึกข้อมูลเรียบร้อยแล้ว!');
-    } catch (err) { showSnackbar(getFirebaseErrorMessage(err), 'error'); }
+      setEditing(false); showToast(t('profile.saveSuccess'));
+    } catch (err) { showToast(getFirebaseErrorMessage(err), 'error'); }
   };
 
   const handlePhotoUpload = async (event) => {
@@ -156,7 +169,7 @@ function ProfilePage() {
     const file = event.target.files[0];
     if (!user || !file) return;
     const fileCheck = validateImageFile(file, 5);
-    if (!fileCheck.valid) { showSnackbar(fileCheck.error, 'error'); return; }
+    if (!fileCheck.valid) { showToast(fileCheck.error, 'error'); return; }
     setUploading(true);
     try {
       const storageRef = storage.ref();
@@ -165,8 +178,8 @@ function ProfilePage() {
       await userPhotoRef.put(file);
       const photoURL = await userPhotoRef.getDownloadURL();
       await user.updateProfile({ photoURL });
-      showSnackbar('อัปโหลดรูปโปรไฟล์เรียบร้อยแล้ว!');
-    } catch (err) { showSnackbar(getFirebaseErrorMessage(err), 'error'); }
+      showToast(t('profile.uploadSuccess'));
+    } catch (err) { showToast(getFirebaseErrorMessage(err), 'error'); }
     finally { setUploading(false); }
   };
 
@@ -176,8 +189,7 @@ function ProfilePage() {
   const providerIds = user?.providerData?.map((p) => p.providerId) || [];
   const getProviderLabel = () => {
     if (providerIds.includes('google.com')) return 'Google';
-    if (providerIds.includes('facebook.com')) return 'Facebook';
-    return 'อีเมล';
+    return t('profile.emailLabel');
   };
 
   return (
@@ -216,12 +228,12 @@ function ProfilePage() {
             >
               {(user?.displayName || user?.email || '?')[0].toUpperCase()}
             </Avatar>
-            <input accept="image/*" style={{ display: 'none' }} id="upload-photo" type="file" onChange={handlePhotoUpload} aria-label="อัปโหลดรูปโปรไฟล์" />
+            <input accept="image/*" style={{ display: 'none' }} id="upload-photo" type="file" onChange={handlePhotoUpload} aria-label={t('profile.uploadPhoto')} />
             <label htmlFor="upload-photo">
               <IconButton
                 component="span"
                 disabled={uploading}
-                aria-label="เปลี่ยนรูปโปรไฟล์"
+                aria-label={t('profile.changePhoto')}
                 sx={{
                   position: 'absolute',
                   bottom: 2,
@@ -244,7 +256,7 @@ function ProfilePage() {
           {editing ? (
             <Box sx={{ maxWidth: 300, mx: 'auto' }}>
               <TextField
-                label="ชื่อ"
+                label={t('profile.nameLabel')}
                 fullWidth
                 size="small"
                 value={displayName}
@@ -260,7 +272,7 @@ function ProfilePage() {
                   size="small"
                   startIcon={<CheckIcon sx={{ fontSize: 16 }} />}
                 >
-                  บันทึก
+                  {t('profile.saveName')}
                 </Button>
                 <Button
                   variant="outlined"
@@ -268,14 +280,14 @@ function ProfilePage() {
                   size="small"
                   startIcon={<CloseIcon sx={{ fontSize: 16 }} />}
                 >
-                  ยกเลิก
+                  {t('profile.cancelEdit')}
                 </Button>
               </Box>
             </Box>
           ) : (
             <Box>
               <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.25, fontSize: '1.375rem' }}>
-                {user?.displayName || 'ไม่มีชื่อ'}
+                {user?.displayName || t('profile.noName')}
               </Typography>
               <Typography sx={{ fontSize: '0.8125rem', color: 'text.secondary', mb: 1 }}>
                 {user?.email}
@@ -300,7 +312,7 @@ function ProfilePage() {
                   onClick={() => setEditing(true)}
                   sx={{ fontSize: '0.75rem', color: 'text.secondary', minWidth: 'auto', px: 1 }}
                 >
-                  แก้ไข
+                  {t('profile.editName')}
                 </Button>
               </Box>
             </Box>
@@ -309,33 +321,33 @@ function ProfilePage() {
       </Paper>
 
       {/* Stats */}
-      <Grid container spacing={1.5} sx={{ mb: 2.5 }}>
-        <Grid item xs={4}>
+      <Grid container spacing={1.5} sx={{ mb: 2.5 }} component={motion.div} variants={staggerContainer} initial="initial" animate="animate">
+        <Grid item xs={4} component={motion.div} variants={staggerItem}>
           <Paper sx={{ border: 'none' }}>
             <StatCard
               icon={<ReceiptLongIcon />}
               iconColor="#8b5cf6"
-              label="รายการทั้งหมด"
+              label={t('profile.totalTransactions')}
               value={stats.count.toLocaleString()}
             />
           </Paper>
         </Grid>
-        <Grid item xs={4}>
+        <Grid item xs={4} component={motion.div} variants={staggerItem}>
           <Paper sx={{ border: 'none' }}>
             <StatCard
               icon={<TrendingUpIcon />}
               iconColor="#22c55e"
-              label="รายรับรวม"
+              label={t('profile.totalIncome')}
               value={formatCurrency(stats.income)}
             />
           </Paper>
         </Grid>
-        <Grid item xs={4}>
+        <Grid item xs={4} component={motion.div} variants={staggerItem}>
           <Paper sx={{ border: 'none' }}>
             <StatCard
               icon={<TrendingDownIcon />}
               iconColor="#ef4444"
-              label="รายจ่ายรวม"
+              label={t('profile.totalExpense')}
               value={formatCurrency(stats.expense)}
             />
           </Paper>
@@ -347,14 +359,14 @@ function ProfilePage() {
         <InfoRow
           icon={<EmailIcon />}
           iconColor="#3b82f6"
-          label="อีเมล"
+          label={t('profile.emailLabel')}
           value={user?.email}
         />
         <Divider />
         <InfoRow
           icon={<CalendarTodayIcon />}
           iconColor="#22c55e"
-          label="วันที่สมัครสมาชิก"
+          label={t('profile.joinDate')}
           value={
             userData.createdAt
               ? formatDateTH(userData.createdAt)
@@ -367,7 +379,7 @@ function ProfilePage() {
         <InfoRow
           icon={<AccountBalanceIcon />}
           iconColor="#f59e0b"
-          label="ยอดคงเหลือ"
+          label={t('profile.totalBalance')}
           value={formatCurrency(stats.income - stats.expense)}
         />
       </Paper>
@@ -389,10 +401,9 @@ function ProfilePage() {
           },
         }}
       >
-        ออกจากระบบ
+        {t('nav.logout')}
       </Button>
 
-      <SnackbarAlert open={snackbar.open} message={snackbar.message} severity={snackbar.severity} onClose={closeSnackbar} />
     </PageContainer>
   );
 }

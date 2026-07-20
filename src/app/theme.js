@@ -10,7 +10,7 @@ export const THEME_PRESETS = {
   emerald: {
     id: 'emerald',
     name: 'Emerald',
-    nameLocal: 'เอเมอรัลด์',
+    nameLocal: 'themeName.emerald',
     icon: '🌿',
     primary: '#10b981',
     secondary: '#f59e0b',
@@ -20,7 +20,7 @@ export const THEME_PRESETS = {
   ocean: {
     id: 'ocean',
     name: 'Ocean',
-    nameLocal: 'โอเชี่ยน',
+    nameLocal: 'themeName.ocean',
     icon: '🌊',
     primary: '#3b82f6',
     secondary: '#f43f5e',
@@ -30,7 +30,7 @@ export const THEME_PRESETS = {
   sunset: {
     id: 'sunset',
     name: 'Sunset',
-    nameLocal: 'ซันเซ็ท',
+    nameLocal: 'themeName.sunset',
     icon: '🌅',
     primary: '#f97316',
     secondary: '#ec4899',
@@ -40,7 +40,7 @@ export const THEME_PRESETS = {
   lavender: {
     id: 'lavender',
     name: 'Lavender',
-    nameLocal: 'ลาเวนเดอร์',
+    nameLocal: 'themeName.lavender',
     icon: '💜',
     primary: '#8b5cf6',
     secondary: '#ec4899',
@@ -50,7 +50,7 @@ export const THEME_PRESETS = {
   rose: {
     id: 'rose',
     name: 'Rose Gold',
-    nameLocal: 'โรสโกลด์',
+    nameLocal: 'themeName.rose',
     icon: '🌸',
     primary: '#f43f5e',
     secondary: '#f97316',
@@ -142,6 +142,13 @@ function getComponents(palette) {
         body: {
           backgroundColor: palette.background.default,
           colorScheme: isDark ? 'dark' : 'light',
+        },
+        '@media (prefers-reduced-motion: reduce)': {
+          '*, *::before, *::after': {
+            animationDuration: '0.01ms !important',
+            animationIterationCount: '1 !important',
+            transitionDuration: '0.01ms !important',
+          },
         },
       },
     },
